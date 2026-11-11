@@ -33,8 +33,10 @@ enum class EstadoValidacion(override val valor: String, override val etiqueta: S
 enum class TipoEvento(override val valor: String, override val etiqueta: String) : ValorEnum {
     INICIO("inicio", "Inicio de viaje"),
     PARADA("parada", "Parada"),
+    DESCANSO("descanso", "Descanso"),
     CARGA("carga", "Carga"),
     DESCARGA("descarga", "Descarga"),
+    ENTREGA("entrega", "Entrega"),
     FIN("fin", "Fin de viaje"),
 }
 
@@ -60,3 +62,11 @@ enum class Gravedad(override val valor: String, override val etiqueta: String) :
     MEDIA("media", "Media"),
     ALTA("alta", "Alta"),
 }
+
+enum class TipoAdjunto(override val valor: String, override val etiqueta: String) : ValorEnum {
+    FOTO("foto", "Foto"),
+    FIRMA("firma", "Firma"),
+}
+
+/** Estado de la alerta de horas de manejo continuo. */
+enum class AlertaHoras { NORMAL, PROXIMA, EXCEDIDA }
