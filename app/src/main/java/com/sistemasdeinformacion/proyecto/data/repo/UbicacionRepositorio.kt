@@ -22,7 +22,7 @@ data class Ubicacion(val lat: Double, val lon: Double, val direccion: String?)
 
 /** Ubicación por evento (nunca seguimiento continuo). Devuelve null sin permiso o sin fijación: nunca bloquea al chofer. */
 interface UbicacionRepositorio {
-    suspend fun actual(timeoutMs: Long = 8_000): Ubicacion?
+    suspend fun actual(timeoutMs: Long = 3_000): Ubicacion?
 }
 
 class UbicacionRepositorioFused(private val context: Context) : UbicacionRepositorio {
@@ -36,14 +36,18 @@ class UbicacionRepositorioFused(private val context: Context) : UbicacionReposit
     @SuppressLint("MissingPermission") // se verifica con tienePermiso()
     override suspend fun actual(timeoutMs: Long): Ubicacion? {
         if (!tienePermiso()) return null
-        val loc = withTimeoutOrNull(timeoutMs) {
+        // Primero la última ubicación si es reciente (instantáneo); si no, una lectura nueva con tiempo límite.
+        val reciente = runCatching { cliente.lastLocation.await() }.getOrNull()
+            ?.takeIf { System.currentTimeMillis() - it.time < 2 * 60_000 }
+        val loc = reciente ?: withTimeoutOrNull(timeoutMs) {
             runCatching {
                 val token = CancellationTokenSource()
                 cliente.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, token.token).await()
-                    ?: cliente.lastLocation.await()
             }.getOrNull()
-        } ?: return null
-        return Ubicacion(loc.latitude, loc.longitude, direccion(loc.latitude, loc.longitude))
+        } ?: runCatching { cliente.lastLocation.await() }.getOrNull() ?: return null
+        // Sin internet la dirección no se puede obtener: se guarda solo el punto y se completa al sincronizar.
+        val dir = if (hayInternet()) direccion(loc.latitude, loc.longitude) else null
+        return Ubicacion(loc.latitude, loc.longitude, dir)
     }
 
     /** Dirección legible; sin internet suele fallar y se deja en null (se completa al sincronizar). */
@@ -52,7 +56,7 @@ class UbicacionRepositorioFused(private val context: Context) : UbicacionReposit
         val geocoder = Geocoder(context, Locale.forLanguageTag("es-CL"))
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                withTimeoutOrNull(4_000) {
+                withTimeoutOrNull(2_500) {
                     suspendCancellableCoroutine { cont ->
                         geocoder.getFromLocation(lat, lon, 1, object : Geocoder.GeocodeListener {
                             override fun onGeocode(lista: MutableList<android.location.Address>) { cont.resume(lista.firstOrNull()?.let(::formatear)) }
@@ -65,6 +69,12 @@ class UbicacionRepositorioFused(private val context: Context) : UbicacionReposit
                 geocoder.getFromLocation(lat, lon, 1)?.firstOrNull()?.let(::formatear)
             }
         }.getOrNull()
+    }
+
+    private fun hayInternet(): Boolean {
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java)
+        return cm.getNetworkCapabilities(cm.activeNetwork)
+            ?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
     }
 
     private fun formatear(a: android.location.Address): String =

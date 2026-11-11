@@ -283,7 +283,7 @@ fun <T> SelectorOpciones(opciones: List<T>, seleccion: T?, etiqueta: (T) -> Stri
                 color = if (elegido) c.sobreAcento else MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
-                    .background(if (elegido) c.acento else MaterialTheme.colorScheme.surfaceContainer)
+                    .background(if (elegido) c.acento else MaterialTheme.colorScheme.surfaceContainerHighest)
                     .clickable(role = Role.RadioButton) { onElegir(op) }
                     .padding(horizontal = 14.dp, vertical = 10.dp),
             )
