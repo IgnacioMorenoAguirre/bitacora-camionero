@@ -1,0 +1,754 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "fc5310c4fe305f9fcd3104f1772566b7",
+    "entities": [
+      {
+        "tableName": "viajes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `choferId` TEXT NOT NULL, `camionId` TEXT, `cliente` TEXT NOT NULL, `origen` TEXT NOT NULL, `destino` TEXT NOT NULL, `ruta` TEXT, `tipoCarga` TEXT NOT NULL, `pesoKg` REAL NOT NULL, `requiereRefrigeracion` INTEGER NOT NULL, `precio` INTEGER NOT NULL, `fechaSalida` INTEGER NOT NULL, `fechaLlegada` INTEGER, `kmInicial` INTEGER, `kmFinal` INTEGER, `estado` TEXT NOT NULL, `validacion` TEXT NOT NULL, `comentarioValidacion` TEXT, `observaciones` TEXT, `eliminado` INTEGER NOT NULL, `modificadoLocal` INTEGER NOT NULL, `syncPendiente` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "choferId",
+            "columnName": "choferId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "camionId",
+            "columnName": "camionId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "cliente",
+            "columnName": "cliente",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "origen",
+            "columnName": "origen",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "destino",
+            "columnName": "destino",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ruta",
+            "columnName": "ruta",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "tipoCarga",
+            "columnName": "tipoCarga",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pesoKg",
+            "columnName": "pesoKg",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requiereRefrigeracion",
+            "columnName": "requiereRefrigeracion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "precio",
+            "columnName": "precio",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fechaSalida",
+            "columnName": "fechaSalida",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fechaLlegada",
+            "columnName": "fechaLlegada",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "kmInicial",
+            "columnName": "kmInicial",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "kmFinal",
+            "columnName": "kmFinal",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "estado",
+            "columnName": "estado",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "validacion",
+            "columnName": "validacion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "comentarioValidacion",
+            "columnName": "comentarioValidacion",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observaciones",
+            "columnName": "observaciones",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "eliminado",
+            "columnName": "eliminado",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modificadoLocal",
+            "columnName": "modificadoLocal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncPendiente",
+            "columnName": "syncPendiente",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_viajes_choferId",
+            "unique": false,
+            "columnNames": [
+              "choferId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_viajes_choferId` ON `${TABLE_NAME}` (`choferId`)"
+          },
+          {
+            "name": "index_viajes_syncPendiente",
+            "unique": false,
+            "columnNames": [
+              "syncPendiente"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_viajes_syncPendiente` ON `${TABLE_NAME}` (`syncPendiente`)"
+          }
+        ]
+      },
+      {
+        "tableName": "revisiones",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `viajeId` TEXT NOT NULL, `neumaticos` INTEGER NOT NULL, `luces` INTEGER NOT NULL, `frenos` INTEGER NOT NULL, `niveles` INTEGER NOT NULL, `documentos` INTEGER NOT NULL, `comentario` TEXT, `eliminado` INTEGER NOT NULL, `modificadoLocal` INTEGER NOT NULL, `syncPendiente` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`viajeId`) REFERENCES `viajes`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "viajeId",
+            "columnName": "viajeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "neumaticos",
+            "columnName": "neumaticos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "luces",
+            "columnName": "luces",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "frenos",
+            "columnName": "frenos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "niveles",
+            "columnName": "niveles",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "documentos",
+            "columnName": "documentos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "comentario",
+            "columnName": "comentario",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "eliminado",
+            "columnName": "eliminado",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modificadoLocal",
+            "columnName": "modificadoLocal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncPendiente",
+            "columnName": "syncPendiente",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_revisiones_viajeId",
+            "unique": true,
+            "columnNames": [
+              "viajeId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_revisiones_viajeId` ON `${TABLE_NAME}` (`viajeId`)"
+          },
+          {
+            "name": "index_revisiones_syncPendiente",
+            "unique": false,
+            "columnNames": [
+              "syncPendiente"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_revisiones_syncPendiente` ON `${TABLE_NAME}` (`syncPendiente`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "viajes",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "viajeId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "eventos",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `viajeId` TEXT NOT NULL, `tipo` TEXT NOT NULL, `fechaHora` INTEGER NOT NULL, `fechaFin` INTEGER, `latitud` REAL, `longitud` REAL, `direccion` TEXT, `km` INTEGER, `nota` TEXT, `eliminado` INTEGER NOT NULL, `modificadoLocal` INTEGER NOT NULL, `syncPendiente` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`viajeId`) REFERENCES `viajes`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "viajeId",
+            "columnName": "viajeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tipo",
+            "columnName": "tipo",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fechaHora",
+            "columnName": "fechaHora",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fechaFin",
+            "columnName": "fechaFin",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "latitud",
+            "columnName": "latitud",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "longitud",
+            "columnName": "longitud",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "direccion",
+            "columnName": "direccion",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "km",
+            "columnName": "km",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "nota",
+            "columnName": "nota",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "eliminado",
+            "columnName": "eliminado",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modificadoLocal",
+            "columnName": "modificadoLocal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncPendiente",
+            "columnName": "syncPendiente",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_eventos_viajeId",
+            "unique": false,
+            "columnNames": [
+              "viajeId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_eventos_viajeId` ON `${TABLE_NAME}` (`viajeId`)"
+          },
+          {
+            "name": "index_eventos_syncPendiente",
+            "unique": false,
+            "columnNames": [
+              "syncPendiente"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_eventos_syncPendiente` ON `${TABLE_NAME}` (`syncPendiente`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "viajes",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "viajeId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "gastos",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `viajeId` TEXT NOT NULL, `tipo` TEXT NOT NULL, `monto` INTEGER NOT NULL, `litros` REAL, `fechaHora` INTEGER NOT NULL, `descripcion` TEXT, `eliminado` INTEGER NOT NULL, `modificadoLocal` INTEGER NOT NULL, `syncPendiente` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`viajeId`) REFERENCES `viajes`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "viajeId",
+            "columnName": "viajeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tipo",
+            "columnName": "tipo",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "monto",
+            "columnName": "monto",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "litros",
+            "columnName": "litros",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "fechaHora",
+            "columnName": "fechaHora",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "descripcion",
+            "columnName": "descripcion",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "eliminado",
+            "columnName": "eliminado",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modificadoLocal",
+            "columnName": "modificadoLocal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncPendiente",
+            "columnName": "syncPendiente",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_gastos_viajeId",
+            "unique": false,
+            "columnNames": [
+              "viajeId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_gastos_viajeId` ON `${TABLE_NAME}` (`viajeId`)"
+          },
+          {
+            "name": "index_gastos_syncPendiente",
+            "unique": false,
+            "columnNames": [
+              "syncPendiente"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_gastos_syncPendiente` ON `${TABLE_NAME}` (`syncPendiente`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "viajes",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "viajeId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "novedades",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `viajeId` TEXT NOT NULL, `tipo` TEXT NOT NULL, `gravedad` TEXT NOT NULL, `descripcion` TEXT NOT NULL, `fechaHora` INTEGER NOT NULL, `latitud` REAL, `longitud` REAL, `eliminado` INTEGER NOT NULL, `modificadoLocal` INTEGER NOT NULL, `syncPendiente` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`viajeId`) REFERENCES `viajes`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "viajeId",
+            "columnName": "viajeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tipo",
+            "columnName": "tipo",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gravedad",
+            "columnName": "gravedad",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "descripcion",
+            "columnName": "descripcion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fechaHora",
+            "columnName": "fechaHora",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "latitud",
+            "columnName": "latitud",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "longitud",
+            "columnName": "longitud",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "eliminado",
+            "columnName": "eliminado",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modificadoLocal",
+            "columnName": "modificadoLocal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncPendiente",
+            "columnName": "syncPendiente",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_novedades_viajeId",
+            "unique": false,
+            "columnNames": [
+              "viajeId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_novedades_viajeId` ON `${TABLE_NAME}` (`viajeId`)"
+          },
+          {
+            "name": "index_novedades_syncPendiente",
+            "unique": false,
+            "columnNames": [
+              "syncPendiente"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_novedades_syncPendiente` ON `${TABLE_NAME}` (`syncPendiente`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "viajes",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "viajeId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "adjuntos",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `viajeId` TEXT NOT NULL, `tipo` TEXT NOT NULL, `rutaLocal` TEXT NOT NULL, `rutaRemota` TEXT, `nombreReceptor` TEXT, `fechaHora` INTEGER NOT NULL, `eliminado` INTEGER NOT NULL, `modificadoLocal` INTEGER NOT NULL, `syncPendiente` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`viajeId`) REFERENCES `viajes`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "viajeId",
+            "columnName": "viajeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tipo",
+            "columnName": "tipo",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rutaLocal",
+            "columnName": "rutaLocal",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rutaRemota",
+            "columnName": "rutaRemota",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "nombreReceptor",
+            "columnName": "nombreReceptor",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fechaHora",
+            "columnName": "fechaHora",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eliminado",
+            "columnName": "eliminado",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modificadoLocal",
+            "columnName": "modificadoLocal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncPendiente",
+            "columnName": "syncPendiente",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_adjuntos_viajeId",
+            "unique": false,
+            "columnNames": [
+              "viajeId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_adjuntos_viajeId` ON `${TABLE_NAME}` (`viajeId`)"
+          },
+          {
+            "name": "index_adjuntos_syncPendiente",
+            "unique": false,
+            "columnNames": [
+              "syncPendiente"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_adjuntos_syncPendiente` ON `${TABLE_NAME}` (`syncPendiente`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "viajes",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "viajeId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "camiones",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `patente` TEXT NOT NULL, `marca` TEXT NOT NULL, `modelo` TEXT NOT NULL, `rendimientoKmL` REAL NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "patente",
+            "columnName": "patente",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "marca",
+            "columnName": "marca",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modelo",
+            "columnName": "modelo",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rendimientoKmL",
+            "columnName": "rendimientoKmL",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fc5310c4fe305f9fcd3104f1772566b7')"
+    ]
+  }
+}
