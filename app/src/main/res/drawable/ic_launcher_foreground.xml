@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Camión estilizado sobre una ruta (lienzo 108x108, zona segura 66dp) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#33FFFFFF" android:pathData="M27,74h54v3H27z" />
+    <path android:fillColor="#FFB020" android:pathData="M33,75h8v1h-8zM47,75h8v1h-8zM61,75h8v1h-8z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M28,44h32a2,2 0,0 1,2 2v22H28a2,2 0,0 1,-2 -2V46a2,2 0,0 1,2 -2z" />
+    <path android:fillColor="#0F1C2E" android:pathData="M32,50h26v2H32zM32,56h20v2H32z" />
+    <path android:fillColor="#FFB020" android:pathData="M64,50h9.5a2,2 0,0 1,1.7 1l5.3,8.2a2,2 0,0 1,0.3 1.1V66a2,2 0,0 1,-2 2H64z" />
+    <path android:fillColor="#0F1C2E" android:pathData="M67,53h6l3.8,6H67z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M36,68m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+    <path android:fillColor="#0F1C2E" android:pathData="M36,68m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+    <path android:fillColor="#FFFFFF" android:pathData="M72,68m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+    <path android:fillColor="#0F1C2E" android:pathData="M72,68m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+</vector>
