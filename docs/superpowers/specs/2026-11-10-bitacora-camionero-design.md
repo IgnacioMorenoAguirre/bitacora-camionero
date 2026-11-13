@@ -233,8 +233,9 @@ Surgieron de la revisión del documento; el usuario no las dictó, son propuesta
 - **"El administrador lo ve al tiro".** La lista de viajes del administrador se actualiza en vivo con
   Supabase Realtime, con "tirar para actualizar" como respaldo.
 - **Correos.** El correo gratuito de Supabase tiene límites estrictos de envío. Por eso: el registro **no
-  pide confirmar el correo**, y la recuperación de contraseña usa un **código de 6 dígitos** que se
-  escribe en la app (no un enlace). Para la demo se usan correos de los integrantes del grupo. Configurar
+  pide confirmar el correo**, y la recuperación de contraseña usa un **enlace que abre la app** (`bitacora://recuperar`) en la
+  pantalla para elegir la nueva contraseña. (Cambio del 13 de noviembre: Supabase ya no permite editar las
+  plantillas de correo sin SMTP propio, así que no se puede enviar un código de 6 dígitos.) Para la demo se usan correos de los integrantes del grupo. Configurar
   un SMTP gratuito (por ejemplo Brevo o Resend) queda como mejora opcional.
 - **Combustible estimado vs. real.** Se compara en **litros**: estimado = km recorridos ÷ rendimiento del
   camión; real = suma de litros cargados. En pesos, el estimado usa el precio promedio por litro de las
