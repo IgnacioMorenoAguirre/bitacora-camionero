@@ -121,6 +121,9 @@ private fun PilaSinSesion() {
 
 @Composable
 private fun PilaConSesion(perfil: Perfil) {
+    val container = LocalContainer.current
+    // Un aviso de enlace que no alcanzó a mostrarse no debe reaparecer tras un cierre de sesión.
+    LaunchedEffect(Unit) { container.enlaceRecuperacion.value = EnlaceRecuperacion.NINGUNO }
     val esAdmin = perfil.rol == Rol.ADMIN
     val pila = rememberNavBackStack(if (esAdmin) AdminViajes else Inicio)
     val nav = remember(pila) { Navegador(pila) }

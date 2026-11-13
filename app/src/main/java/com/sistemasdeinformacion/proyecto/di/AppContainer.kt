@@ -1,6 +1,7 @@
 package com.sistemasdeinformacion.proyecto.di
 
 import android.content.Context
+import android.util.Log
 import com.sistemasdeinformacion.proyecto.core.RelojSistema
 import com.sistemasdeinformacion.proyecto.data.local.AppDatabase
 import com.sistemasdeinformacion.proyecto.data.local.borrarTodo
@@ -71,6 +72,9 @@ class AppContainer(val context: Context) {
                 programadorSync.alGuardar()
                 alcance.launch { actualizarCamiones() }
             },
+            // Borrar los datos locales espera a que termine una sync en curso.
+            exclusion = { bloque -> sincronizador?.sinSincronizar(bloque) ?: bloque() },
+            registrarError = { mensaje, e -> Log.w(ETIQUETA, mensaje, e) },
         )
     }
 
@@ -111,8 +115,14 @@ class AppContainer(val context: Context) {
             bajarCamiones(supabase, db.camionDao())
         } catch (e: CancellationException) {
             throw e
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            // Sin señal es normal; un error de permisos (RLS) en camiones también cae aquí y debe verse.
+            Log.w(ETIQUETA, "No se pudieron bajar los camiones", e)
         }
+    }
+
+    private companion object {
+        const val ETIQUETA = "Bitacora"
     }
 
     init {

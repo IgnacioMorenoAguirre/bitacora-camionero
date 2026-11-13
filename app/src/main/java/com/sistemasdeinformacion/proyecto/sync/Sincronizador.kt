@@ -36,6 +36,9 @@ class Sincronizador(
     /** El trabajo inmediato y el periódico pueden coincidir: se sincroniza de a uno. */
     private val enCurso = Mutex()
 
+    /** Corre [bloque] cuando no hay una sync a medias (p. ej. borrar los datos al cerrar sesión). */
+    suspend fun sinSincronizar(bloque: suspend () -> Unit) = enCurso.withLock { bloque() }
+
     suspend fun sincronizar(): ResultadoSync = enCurso.withLock {
         val chofer = choferId() ?: return@withLock ResultadoSync.Ok(0, 0, emptyList())
         try {

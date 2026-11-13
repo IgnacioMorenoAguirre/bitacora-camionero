@@ -14,12 +14,14 @@ import kotlinx.coroutines.launch
 enum class EnlaceRecuperacion { NINGUNO, VALIDO, VENCIDO }
 
 /**
- * true si el enlace trae la sesión de recuperación (#access_token=…). Un enlace vencido o usado llega
- * como #error=access_denied&error_code=otp_expired, y supabase-kt (flujo implícito) no avisa por onError.
+ * true si el enlace trae el código PKCE (?code=...) para canjear por la sesión de recuperación. Un
+ * enlace vencido o usado llega con error=access_denied&error_code=otp_expired, y supabase-kt no avisa
+ * eso por onError (solo lo registra), así que la app lo revisa antes.
  */
 fun enlaceTraeSesion(fragmento: String?, consulta: String?): Boolean {
-    val claves = listOfNotNull(fragmento, consulta).flatMap { it.split('&') }.map { it.substringBefore('=') }.toSet()
-    return "access_token" in claves && "error" !in claves && "error_code" !in claves
+    fun claves(texto: String?) = texto.orEmpty().split('&').map { it.substringBefore('=') }.filter { it.isNotEmpty() }.toSet()
+    val todas = claves(fragmento) + claves(consulta)
+    return "code" in claves(consulta) && "error" !in todas && "error_code" !in todas
 }
 
 data class EstadoRecuperacion(

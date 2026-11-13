@@ -3,12 +3,14 @@ package com.sistemasdeinformacion.proyecto.data.repo
 import com.sistemasdeinformacion.proyecto.data.model.Rol
 import com.sistemasdeinformacion.proyecto.data.prefs.Perfil
 import com.sistemasdeinformacion.proyecto.data.remote.errorDeRespuesta
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import java.io.IOException
 
@@ -20,20 +22,29 @@ class AuthRepositorioTest {
     private val prefs = PerfilEnMemoria()
     private var borrados = 0
     private var entradas = 0
+    private var fallaAlEntrar: Exception? = null
+    private val errores = mutableListOf<String>()
+    private var enExclusion = false
+    private val borradosEnExclusion = mutableListOf<Boolean>()
     private val perfilesServidor = mutableMapOf("u1" to juan)
+    private var fallaPerfil: Exception? = null
     private val repo = AuthRepositorioSupabase(
         auth = auth,
-        fuentePerfil = { u -> perfilesServidor[u.id] ?: throw ErrorAuth.Desconocido(null) },
+        fuentePerfil = { u -> fallaPerfil?.let { throw it }; perfilesServidor[u.id] ?: throw ErrorAuth.Desconocido(null) },
         prefs = prefs,
-        db = { borrados++ },
-        alEntrar = { entradas++ },
+        db = { borrados++; borradosEnExclusion += enExclusion },
+        alEntrar = { entradas++; fallaAlEntrar?.let { throw it } },
+        exclusion = { bloque -> enExclusion = true; try { bloque() } finally { enExclusion = false } },
+        registrarError = { msj, _ -> errores += msj },
     )
+
+    init { prefs.dentroDeExclusion = { enExclusion } }
 
     private suspend fun estadoFinal() = repo.estado.first { it !is EstadoSesion.Cargando }
 
     @Test fun sesionGuardada_sinRed_quedaActiva() = runTest {
         prefs.perfil.value = juan
-        auth.sesion.value = true
+        auth.sesion.value = "u1"
         auth.sinRed = true // renovar el token fallaría: no debe importar
 
         assertEquals(EstadoSesion.Activa(juan), estadoFinal())
@@ -45,14 +56,14 @@ class AuthRepositorioTest {
 
     @Test fun perfilSinSesionGuardada_esSinSesion() = runTest {
         prefs.perfil.value = juan
-        auth.sesion.value = false
+        auth.sesion.value = null
 
         assertEquals(EstadoSesion.SinSesion, estadoFinal())
     }
 
     @Test fun cerrarSesion_borraDatosLocales() = runTest {
         prefs.perfil.value = juan
-        auth.sesion.value = true
+        auth.sesion.value = "u1"
 
         repo.cerrarSesion()
 
@@ -64,7 +75,7 @@ class AuthRepositorioTest {
 
     @Test fun cerrarSesion_sinRed_igualBorra() = runTest {
         prefs.perfil.value = juan
-        auth.sesion.value = true
+        auth.sesion.value = "u1"
         auth.sinRed = true
 
         repo.cerrarSesion()
@@ -132,7 +143,7 @@ class AuthRepositorioTest {
     }
 
     @Test fun cambiarContrasena_conSesionDeRecuperacion_entra() = runTest {
-        auth.sesion.value = true
+        auth.sesion.value = "u1"
         auth.usuario = Usuario("u1", "juan@correo.cl")
 
         val r = repo.cambiarContrasena("nueva1234")
@@ -149,6 +160,98 @@ class AuthRepositorioTest {
         assertEquals(ErrorAuth.SinConexion, repo.enviarEnlaceRecuperacion("juan@correo.cl").exceptionOrNull())
     }
 
+    @Test fun sesionDeOtroUsuario_noEsActiva() = runTest {
+        prefs.perfil.value = juan
+        auth.sesion.value = "u2"
+
+        assertEquals(EstadoSesion.SinSesion, estadoFinal())
+    }
+
+    @Test fun recuperacion_conPerfilGuardadoSinSesion_noEntraHastaCambiarContrasena() = runTest {
+        // Quedó el perfil (la librería borró la sesión que el servidor rechazó) y llega el enlace.
+        prefs.perfil.value = juan
+        repo.prepararRecuperacion()
+        auth.sesion.value = "u1" // supabase-kt importa la sesión de recuperación
+        auth.usuario = Usuario("u1", "juan@correo.cl")
+
+        assertEquals(EstadoSesion.SinSesion, estadoFinal())
+
+        repo.cambiarContrasena("nueva1234")
+
+        assertEquals(EstadoSesion.Activa(juan), estadoFinal())
+        assertEquals(0, borrados)
+    }
+
+    @Test fun recuperacion_deOtraCuenta_borraLosDatosDelPerfilViejo() = runTest {
+        prefs.perfil.value = Perfil("u2", "Otra", "otra@correo.cl", Rol.CHOFER)
+        repo.prepararRecuperacion()
+        auth.sesion.value = "u1"
+        auth.usuario = Usuario("u1", "juan@correo.cl")
+
+        assertEquals(EstadoSesion.SinSesion, estadoFinal())
+        repo.cambiarContrasena("nueva1234")
+
+        assertEquals(1, borrados)
+        assertEquals(EstadoSesion.Activa(juan), estadoFinal())
+    }
+
+    @Test fun iniciarSesion_sinPerfilPrevio_reiniciaLaMarcaDeBajada() = runTest {
+        // Una sync que terminó tras cerrar sesión pudo dejar la marca de la persona anterior.
+        prefs.marca = "2026-11-01T10:00:00Z"
+
+        repo.iniciarSesion("juan@correo.cl", "clave1234")
+
+        assertNull(prefs.marca)
+    }
+
+    @Test fun iniciarSesion_otroUsuario_reiniciaLaMarcaDeBajada() = runTest {
+        prefs.perfil.value = Perfil("u2", "Otra", "otra@correo.cl", Rol.CHOFER)
+        prefs.marca = "2026-11-01T10:00:00Z"
+
+        repo.iniciarSesion("juan@correo.cl", "clave1234")
+
+        assertNull(prefs.marca)
+    }
+
+    @Test fun iniciarSesion_mismoUsuario_conservaLaMarca() = runTest {
+        prefs.perfil.value = juan
+        prefs.marca = "2026-11-01T10:00:00Z"
+
+        repo.iniciarSesion("juan@correo.cl", "clave1234")
+
+        assertEquals("2026-11-01T10:00:00Z", prefs.marca)
+    }
+
+    @Test fun cerrarSesion_borraSinUnaSyncEnCurso() = runTest {
+        prefs.perfil.value = juan
+        auth.sesion.value = "u1"
+
+        repo.cerrarSesion()
+
+        assertEquals(listOf(true), borradosEnExclusion)
+        assertEquals(listOf(true), prefs.limpiezasEnExclusion)
+    }
+
+    @Test fun alEntrar_falla_igualEntraYQuedaRegistrado() = runTest {
+        fallaAlEntrar = IllegalStateException("RLS de camiones")
+
+        val r = repo.iniciarSesion("juan@correo.cl", "clave1234")
+
+        assertEquals(juan, r.getOrNull())
+        assertEquals(1, errores.size)
+    }
+
+    @Test fun iniciarSesion_cancelado_noCierraLaSesionEnElServidor() = runTest {
+        fallaPerfil = CancellationException("pantalla cerrada")
+
+        try {
+            repo.iniciarSesion("juan@correo.cl", "clave1234")
+            fail("debía propagar la cancelación")
+        } catch (_: CancellationException) {
+        }
+        assertEquals(0, auth.cierres)
+    }
+
     @Test fun error400_alIniciarSesion_esCredencialesInvalidas() {
         assertEquals(ErrorAuth.CredencialesInvalidas, errorDeRespuesta(400, null, alIniciarSesion = true))
         assertEquals(ErrorAuth.CredencialesInvalidas, errorDeRespuesta(400, "invalid_credentials", alIniciarSesion = true))
@@ -160,8 +263,9 @@ class AuthRepositorioTest {
 
 /** AuthApi falsa: con [sinRed] cada llamada al servidor lanza IOException, como supabase-kt sin señal. */
 class AuthEnMemoria : AuthApi {
-    val sesion = MutableStateFlow(false)
-    override val haySesion = sesion
+    /** id del usuario de la sesión guardada; null sin sesión. */
+    val sesion = MutableStateFlow<String?>(null)
+    override val usuarioDeSesion = sesion
     var sinRed = false
     var usuario: Usuario? = null
     var cierres = 0
@@ -174,13 +278,13 @@ class AuthEnMemoria : AuthApi {
     override suspend fun iniciarSesion(email: String, contrasena: String): Usuario {
         red()
         ultimoEmail = email
-        return Usuario("u1", email).also { usuario = it; sesion.value = true }
+        return Usuario("u1", email).also { usuario = it; sesion.value = "u1" }
     }
 
     override suspend fun registrar(nombre: String, email: String, contrasena: String): Usuario {
         red()
         ultimoNombre = nombre
-        return Usuario("u1", email).also { usuario = it; sesion.value = true }
+        return Usuario("u1", email).also { usuario = it; sesion.value = "u1" }
     }
 
     override suspend fun enviarEnlaceRecuperacion(email: String) { red() }
@@ -195,7 +299,7 @@ class AuthEnMemoria : AuthApi {
     override suspend fun cerrarSesion() {
         cierres++
         usuario = null
-        sesion.value = false
+        sesion.value = null
         // Sin red, supabase-kt no avisa al servidor pero sí borra la sesión local.
         if (sinRed) throw IOException("sin red")
     }
@@ -203,7 +307,17 @@ class AuthEnMemoria : AuthApi {
 
 class PerfilEnMemoria : PerfilLocal {
     override val perfil = MutableStateFlow<Perfil?>(null)
+    override val recuperando = MutableStateFlow(false)
+    var marca: String? = null
     var limpiezas = 0
+    /** Si cada limpieza ocurrió dentro de la exclusión con la sync. */
+    val limpiezasEnExclusion = mutableListOf<Boolean>()
+    var dentroDeExclusion: () -> Boolean = { false }
     override suspend fun guardarPerfil(perfil: Perfil?) { this.perfil.value = perfil }
-    override suspend fun limpiar() { limpiezas++; perfil.value = null }
+    override suspend fun marcarRecuperacion(activa: Boolean) { recuperando.value = activa }
+    override suspend fun limpiar() {
+        limpiezas++
+        limpiezasEnExclusion += dentroDeExclusion()
+        perfil.value = null; marca = null; recuperando.value = false
+    }
 }

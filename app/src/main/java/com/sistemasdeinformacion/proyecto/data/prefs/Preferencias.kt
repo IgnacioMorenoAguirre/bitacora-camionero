@@ -32,6 +32,7 @@ class Preferencias(private val context: Context) : PerfilLocal {
     private val clavePerfilRol = stringPreferencesKey("perfil_rol")
     private val claveMarcaBajada = stringPreferencesKey("marca_bajada")
     private val claveRestaurados = stringPreferencesKey("viajes_restaurados")
+    private val claveRecuperando = booleanPreferencesKey("recuperacion_pendiente")
 
     val temaClaro: Flow<Boolean> = context.dataStore.data.map { it[claveTemaClaro] ?: false }
 
@@ -55,6 +56,12 @@ class Preferencias(private val context: Context) : PerfilLocal {
                 it[clavePerfilRol] = perfil.rol.valor
             }
         }
+    }
+
+    override val recuperando: Flow<Boolean> = context.dataStore.data.map { it[claveRecuperando] ?: false }
+
+    override suspend fun marcarRecuperacion(activa: Boolean) {
+        context.dataStore.edit { if (activa) it[claveRecuperando] = true else it.remove(claveRecuperando) }
     }
 
     suspend fun marcaBajada(): String? = context.dataStore.data.first()[claveMarcaBajada]

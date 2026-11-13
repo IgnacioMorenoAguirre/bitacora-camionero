@@ -4,14 +4,16 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** Flujo PKCE: el enlace trae ?code=... y nunca tokens. */
 class EnlaceRecuperacionTest {
 
-    @Test fun enlaceConToken_traeSesion() {
-        assertTrue(enlaceTraeSesion("access_token=abc&expires_in=3600&refresh_token=r&token_type=bearer&type=recovery", null))
+    @Test fun enlaceConCodigo_traeSesion() {
+        assertTrue(enlaceTraeSesion(null, "code=8f2c1e"))
     }
 
     @Test fun enlaceVencido_noTraeSesion() {
-        assertFalse(enlaceTraeSesion("error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid", null))
+        assertFalse(enlaceTraeSesion(null, "error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid"))
+        assertFalse(enlaceTraeSesion("error=access_denied&error_code=otp_expired", null))
     }
 
     @Test fun enlaceVacio_noTraeSesion() {
@@ -19,7 +21,12 @@ class EnlaceRecuperacionTest {
         assertFalse(enlaceTraeSesion("", ""))
     }
 
-    @Test fun errorEnLaConsulta_noTraeSesion() {
-        assertFalse(enlaceTraeSesion("access_token=abc", "error=server_error"))
+    @Test fun tokensEnElFragmento_noSeAceptan() {
+        // Flujo implícito: el token viajaría en el enlace; la app solo acepta el código PKCE.
+        assertFalse(enlaceTraeSesion("access_token=abc&refresh_token=r&type=recovery", null))
+    }
+
+    @Test fun codigoConError_noTraeSesion() {
+        assertFalse(enlaceTraeSesion("error=server_error", "code=8f2c1e"))
     }
 }

@@ -59,10 +59,10 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Enlace bitacora://recuperar del correo de recuperación. Trae la sesión de recuperación en el
-     * fragmento (#access_token=…&type=recovery); supabase-kt la importa y la navegación abre la
-     * pantalla de contraseña nueva. Con una sesión activa en el teléfono se ignora: importar la de
-     * otra cuenta mezclaría sus datos con los de quien está usando la app.
+     * Enlace bitacora://recuperar?code=... del correo de recuperación. supabase-kt canjea el código
+     * (PKCE) por la sesión de recuperación y la navegación abre la pantalla de contraseña nueva. Esa
+     * sesión no deja entrar hasta fijar la contraseña (prepararRecuperacion). Con una sesión activa en
+     * el teléfono se ignora: importar la de otra cuenta mezclaría sus datos con los de quien la usa.
      */
     private fun manejarEnlace(intent: Intent?) {
         val uri = intent?.data ?: return
@@ -78,6 +78,7 @@ class MainActivity : ComponentActivity() {
                 container.enlaceRecuperacion.value = EnlaceRecuperacion.VENCIDO
                 return@launch
             }
+            container.auth.prepararRecuperacion()
             container.supabase.handleDeeplinks(
                 intent,
                 onSessionSuccess = { container.enlaceRecuperacion.value = EnlaceRecuperacion.VALIDO },

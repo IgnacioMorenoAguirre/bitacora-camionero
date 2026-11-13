@@ -107,5 +107,6 @@ class AuthFalso : AuthRepositorio {
     override suspend fun registrar(nombre: String, email: String, contrasena: String): Result<Perfil> { intentos++; return resultado }
     override suspend fun enviarEnlaceRecuperacion(email: String): Result<Unit> { intentos++; return resultado.map { } }
     override suspend fun cambiarContrasena(nueva: String): Result<Unit> { intentos++; return resultado.map { } }
+    override suspend fun prepararRecuperacion() {}
     override suspend fun cerrarSesion() {}
 }

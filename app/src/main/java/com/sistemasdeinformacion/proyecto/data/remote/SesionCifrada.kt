@@ -9,11 +9,16 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.jan.supabase.auth.SessionManager
 import io.github.jan.supabase.auth.user.UserSession
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -49,8 +54,28 @@ class SesionCifrada(private val context: Context) : SessionManager {
 
     suspend fun haySesion(): Boolean = context.almacenSesion.data.first()[clave] != null
 
-    /** Cambia a false cuando la librería borra la sesión (cierre o token rechazado por el servidor). */
-    val guardada: Flow<Boolean> = context.almacenSesion.data.map { it[clave] != null }.distinctUntilChanged()
+    /**
+     * id del usuario dueño de la sesión guardada; null sin sesión (o si no se puede leer). Cambia
+     * cuando la librería guarda otra sesión o la borra (cierre o token rechazado por el servidor).
+     */
+    val usuarioId: Flow<String?> = context.almacenSesion.data
+        .map { it[clave] }
+        .distinctUntilChanged()
+        .map { guardado -> guardado?.let { runCatching { usuarioDe(it) }.getOrNull() } }
+        .distinctUntilChanged()
+        .flowOn(Dispatchers.Default)
+
+    private fun usuarioDe(guardado: String): String? {
+        val sesion = json.decodeFromString(UserSession.serializer(), String(descifrar(guardado), Charsets.UTF_8))
+        return sesion.user?.id ?: sujetoDelToken(sesion.accessToken)
+    }
+
+    /** Respaldo si la sesión no trae el usuario: el "sub" del JWT es el id. */
+    private fun sujetoDelToken(token: String): String? {
+        val payload = token.split('.').getOrNull(1) ?: return null
+        val texto = String(Base64.decode(payload, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP), Charsets.UTF_8)
+        return json.parseToJsonElement(texto).jsonObject["sub"]?.jsonPrimitive?.contentOrNull
+    }
 
     // ---------- cifrado ----------
     private fun llave(): SecretKey {

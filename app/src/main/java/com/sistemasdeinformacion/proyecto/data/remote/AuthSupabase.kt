@@ -30,7 +30,7 @@ class AuthApiSupabase(private val supabase: SupabaseClient, private val sesion: 
 
     private val auth get() = supabase.auth
 
-    override val haySesion: Flow<Boolean> = sesion.guardada
+    override val usuarioDeSesion: Flow<String?> = sesion.usuarioId
 
     override suspend fun iniciarSesion(email: String, contrasena: String): Usuario = traducirErrores(alIniciarSesion = true) {
         auth.signInWith(Email) {
@@ -105,7 +105,7 @@ class FuentePerfilSupabase(private val supabase: SupabaseClient) : FuentePerfil 
 
 /** Sin local.properties configurado: la app abre, pero no puede iniciar sesión. */
 object AuthApiSinServidor : AuthApi {
-    override val haySesion: Flow<Boolean> = flowOf(false)
+    override val usuarioDeSesion: Flow<String?> = flowOf(null)
     override suspend fun iniciarSesion(email: String, contrasena: String): Usuario = throw ErrorAuth.SinServidor
     override suspend fun registrar(nombre: String, email: String, contrasena: String): Usuario = throw ErrorAuth.SinServidor
     override suspend fun enviarEnlaceRecuperacion(email: String) = throw ErrorAuth.SinServidor
