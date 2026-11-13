@@ -8,14 +8,23 @@ import com.sistemasdeinformacion.proyecto.data.model.Rol
 import com.sistemasdeinformacion.proyecto.data.prefs.Perfil
 import com.sistemasdeinformacion.proyecto.data.prefs.Preferencias
 import com.sistemasdeinformacion.proyecto.data.prefs.observarConexion
+import com.sistemasdeinformacion.proyecto.data.remote.SesionCifrada
+import com.sistemasdeinformacion.proyecto.data.remote.crearSupabase
+import com.sistemasdeinformacion.proyecto.data.remote.supabaseConfigurado
 import com.sistemasdeinformacion.proyecto.data.repo.UbicacionRepositorioFused
 import com.sistemasdeinformacion.proyecto.data.repo.ViajesRepositorio
 import com.sistemasdeinformacion.proyecto.data.repo.ViajesRepositorioRoom
+import com.sistemasdeinformacion.proyecto.sync.DestinoSupabase
+import com.sistemasdeinformacion.proyecto.sync.OrigenLocalRoom
 import com.sistemasdeinformacion.proyecto.sync.ProgramadorSync
 import com.sistemasdeinformacion.proyecto.sync.ProgramadorSyncLocal
+import com.sistemasdeinformacion.proyecto.sync.ProgramadorSyncWorkManager
+import com.sistemasdeinformacion.proyecto.sync.Sincronizador
+import io.github.jan.supabase.SupabaseClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -35,8 +44,36 @@ class AppContainer(val context: Context) {
      */
     val perfil = Perfil(id = "demo-chofer", nombre = "Juan Pérez", email = "chofer@demo.cl", rol = Rol.CHOFER)
 
-    /** Sin Supabase todavía (Task 6): solo informa pendientes y conexión. */
-    val programadorSync: ProgramadorSync by lazy { ProgramadorSyncLocal(db.syncDao().contarPendientes(), conexion) }
+    /** Cliente de Supabase; solo se crea si local.properties trae la URL y la llave del proyecto. */
+    val supabase: SupabaseClient by lazy { crearSupabase(SesionCifrada(context)) }
+
+    /** Último error de sincronización (lo escribe el SyncWorker, lo muestra el indicador). */
+    val errorSync = MutableStateFlow<String?>(null)
+
+    /** null sin Supabase configurado: los datos quedan en el teléfono hasta que exista el proyecto. */
+    val sincronizador: Sincronizador? by lazy {
+        if (!supabaseConfigurado) return@lazy null
+        Sincronizador(
+            local = OrigenLocalRoom(db.syncDao()),
+            remoto = DestinoSupabase(supabase),
+            marca = { preferencias.marcaBajada() },
+            guardarMarca = { preferencias.guardarMarcaBajada(it) },
+            // Solo el chofer sincroniza su bitácora; sin sesión iniciada no se hace nada.
+            choferId = { preferencias.perfil.first()?.takeIf { it.rol == Rol.CHOFER }?.id },
+        )
+    }
+
+    val programadorSync: ProgramadorSync by lazy {
+        val pendientes = db.syncDao().contarPendientes()
+        if (supabaseConfigurado) {
+            ProgramadorSyncWorkManager(context, pendientes, conexion, errorSync, preferencias.viajesRestaurados).also {
+                it.periodico()
+                it.alGuardar() // por si quedaron pendientes de una sesión anterior
+            }
+        } else {
+            ProgramadorSyncLocal(pendientes, conexion)
+        }
+    }
 
     val viajes: ViajesRepositorio by lazy {
         ViajesRepositorioRoom(db, { perfil.id }, RelojSistema, ubicaciones, programadorSync)

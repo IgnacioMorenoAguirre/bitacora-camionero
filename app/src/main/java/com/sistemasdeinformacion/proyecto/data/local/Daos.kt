@@ -124,4 +124,50 @@ interface SyncDao {
             "(SELECT COUNT(*) FROM adjuntos WHERE syncPendiente = 1)"
     )
     fun contarPendientes(): Flow<Int>
+
+    // ---------- bajada ----------
+    @Query("SELECT syncPendiente FROM viajes WHERE id = :id") suspend fun viajePendiente(id: String): Boolean?
+    @Query("SELECT syncPendiente FROM revisiones WHERE id = :id") suspend fun revisionPendiente(id: String): Boolean?
+    @Query("SELECT syncPendiente FROM eventos WHERE id = :id") suspend fun eventoPendiente(id: String): Boolean?
+    @Query("SELECT syncPendiente FROM gastos WHERE id = :id") suspend fun gastoPendiente(id: String): Boolean?
+    @Query("SELECT syncPendiente FROM novedades WHERE id = :id") suspend fun novedadPendiente(id: String): Boolean?
+    @Query("SELECT syncPendiente FROM adjuntos WHERE id = :id") suspend fun adjuntoPendiente(id: String): Boolean?
+
+    @Query("SELECT EXISTS(SELECT 1 FROM viajes WHERE id = :id)") suspend fun existeViaje(id: String): Boolean
+    @Query("SELECT rutaLocal FROM adjuntos WHERE id = :id") suspend fun rutaLocalAdjunto(id: String): String?
+
+    @Upsert suspend fun guardarViaje(v: ViajeEntity)
+    @Upsert suspend fun guardarRevision(r: RevisionEntity)
+    @Upsert suspend fun guardarEvento(e: EventoEntity)
+    @Upsert suspend fun guardarGasto(g: GastoEntity)
+    @Upsert suspend fun guardarNovedad(n: NovedadEntity)
+    @Upsert suspend fun guardarAdjunto(a: AdjuntoEntity)
+
+    /** Borra el viaje; sus registros caen con él (ON DELETE CASCADE). */
+    @Query("DELETE FROM viajes WHERE id = :id") suspend fun borrarViaje(id: String)
+
+    /**
+     * Guarda lo que bajó del servidor en una sola transacción. Se omiten las filas que siguen pendientes
+     * en el teléfono (gana la local hasta que se suba) y los registros de viajes que no existen aquí.
+     * Los adjuntos conservan la ruta del archivo local, que el servidor no conoce.
+     */
+    @Transaction
+    suspend fun aplicarRemotos(
+        viajes: List<ViajeEntity>,
+        revisiones: List<RevisionEntity>,
+        eventos: List<EventoEntity>,
+        gastos: List<GastoEntity>,
+        novedades: List<NovedadEntity>,
+        adjuntos: List<AdjuntoEntity>,
+    ) {
+        for (v in viajes) if (viajePendiente(v.id) != true) guardarViaje(v)
+        for (r in revisiones) if (revisionPendiente(r.id) != true && existeViaje(r.viajeId)) guardarRevision(r)
+        for (e in eventos) if (eventoPendiente(e.id) != true && existeViaje(e.viajeId)) guardarEvento(e)
+        for (g in gastos) if (gastoPendiente(g.id) != true && existeViaje(g.viajeId)) guardarGasto(g)
+        for (n in novedades) if (novedadPendiente(n.id) != true && existeViaje(n.viajeId)) guardarNovedad(n)
+        for (a in adjuntos) {
+            if (adjuntoPendiente(a.id) == true || !existeViaje(a.viajeId)) continue
+            guardarAdjunto(a.copy(rutaLocal = rutaLocalAdjunto(a.id) ?: a.rutaLocal))
+        }
+    }
 }
