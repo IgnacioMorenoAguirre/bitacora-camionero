@@ -182,7 +182,21 @@ class SincronizadorTest {
         assertEquals(listOf("archivo:a1", "adjuntos:a1", "adjuntos:a2"), remoto.llamadas)
         assertEquals("v1/a1.jpg", (remoto.filas(Tablas.ADJUNTOS)["a1"] as AdjuntoEntity).rutaRemota)
         assertEquals("v1/a2.png", (remoto.filas(Tablas.ADJUNTOS)["a2"] as AdjuntoEntity).rutaRemota)
+        assertEquals("v1/a1.jpg", local.adjuntos["a1"].rutaRemota)
         assertEquals(0, local.pendientes().total)
+    }
+
+    @Test fun adjunto_rutaRemotaQuedaEnElTelefonoAunqueFalleLaBajada() = runTest {
+        local.viajes.poner(viaje("v1", pendiente = false))
+        local.adjuntos.poner(adjunto("a1", "v1"))
+        remoto.fallarBajada = IOException("Sin señal")
+
+        assertEquals(ResultadoSync.SinConexion, sync.sincronizar())
+
+        val a1 = local.adjuntos["a1"]
+        assertEquals("v1/a1.jpg", a1.rutaRemota)
+        assertFalse("la ruta no cambia modificadoLocal: el envío se confirma igual", a1.syncPendiente)
+        assertEquals(1L, a1.modificadoLocal)
     }
 
     @Test fun adjunto_sinArchivo_quedaPendienteYNoFrenaLaBajada() = runTest {
@@ -202,12 +216,41 @@ class SincronizadorTest {
     @Test fun falla_informaSoloElErrorSinDetallesDeLaPeticion() = runTest {
         local.viajes.poner(viaje("v1"))
         local.gastos.poner(gasto("g1", "v1"))
-        remoto.fallarUnaVezEn = Tablas.GASTOS
-        remoto.errorAlFallar =
+        remoto.rechazarIds["g1"] =
             IllegalStateException("permission denied\nURL: https://x.supabase.co\nHeaders: [Authorization=Bearer abc]")
 
         assertEquals(ResultadoSync.Falla("permission denied"), sync.sincronizar())
         assertTrue(local.gastos["g1"].syncPendiente)
+    }
+
+    @Test fun filaRechazadaPorElServidor_noFrenaLoDemasNiLaBajada() = runTest {
+        local.viajes.poner(viaje("v1"))
+        local.gastos.poner(gasto("g1", "v1"))
+        local.gastos.poner(gasto("g2", "v1"))
+        local.novedades.poner(novedad("n1", "v1"))
+        local.viajes.poner(viaje("v2"))
+        local.gastos.poner(gasto("g3", "v2"))
+        remoto.rechazarIds["g1"] = IllegalStateException("new row violates check constraint")
+        remoto.rechazarIds["v2"] = IllegalStateException("new row violates row-level security policy")
+        remoto.cambios = CambiosRemotos(
+            viajes = listOf(
+                viaje("v9", pendiente = false).aSubida().comoDtoBajada()
+                    .copy(validacion = "aprobado", actualizadoEn = "2026-11-10T12:00:00+00:00"),
+            ),
+        )
+
+        val r = sync.sincronizar()
+
+        assertTrue(r is ResultadoSync.Falla)
+        assertTrue(local.gastos["g1"].syncPendiente)
+        assertFalse(local.gastos["g2"].syncPendiente)
+        assertFalse(local.novedades["n1"].syncPendiente)
+        assertTrue(local.viajes["v2"].syncPendiente)
+        assertFalse("los registros de un viaje que no subió esperan", "gastos:g3" in remoto.llamadas)
+        assertTrue(local.gastos["g3"].syncPendiente)
+        assertEquals(1, remoto.marcasPedidas.size)
+        assertEquals(EstadoValidacion.APROBADO, local.viajes["v9"].validacion)
+        assertEquals("2026-11-10T12:00:00+00:00", marcaGuardada)
     }
 
     @Test fun sinSesion_noHaceNada() = runTest {
@@ -294,6 +337,10 @@ class LocalEnMemoria : OrigenLocal {
         }
     }
 
+    override suspend fun guardarRutaRemota(adjuntoId: String, ruta: String) {
+        adjuntos.filas[adjuntoId]?.let { adjuntos.poner(it.copy(rutaRemota = ruta)) }
+    }
+
     override suspend fun aplicarRemotos(c: CambiosRemotos) {
         c.viajes.forEach { viajes.aplicar(it.aEntidad()) }
         c.revisiones.forEach { revisiones.aplicar(it.aEntidad()) }
@@ -320,6 +367,9 @@ class RemotoEnMemoria : DestinoRemoto {
     private val tablas = mutableMapOf<String, MutableMap<String, Sincronizable>>()
     val aprobados = mutableSetOf<String>()
     val sinArchivo = mutableSetOf<String>()
+    /** Filas que el servidor rechaza siempre (RLS, CHECK…): el lote que las trae falla entero. */
+    val rechazarIds = mutableMapOf<String, Exception>()
+    var fallarBajada: Exception? = null
     var fallarUnaVezEn: String? = null
     var errorAlFallar: Exception = IOException("Sin señal")
     var alSubir: (tabla: String, items: List<Sincronizable>) -> Unit = { _, _ -> }
@@ -329,6 +379,7 @@ class RemotoEnMemoria : DestinoRemoto {
     fun filas(tabla: String): Map<String, Sincronizable> = tablas[tabla].orEmpty()
 
     override suspend fun subirViaje(v: ViajeEntity): ResultadoFila {
+        rechazarIds[v.id]?.let { throw it }
         llamadas += "${Tablas.VIAJES}:${v.id}"
         if (v.id in aprobados) return ResultadoFila.RECHAZADO_APROBADO
         alSubir(Tablas.VIAJES, listOf(v))
@@ -341,6 +392,7 @@ class RemotoEnMemoria : DestinoRemoto {
             fallarUnaVezEn = null
             throw errorAlFallar
         }
+        items.firstNotNullOfOrNull { rechazarIds[it.id] }?.let { throw it }
         items.forEach { llamadas += "$tabla:${it.id}" }
         alSubir(tabla, items)
         val destino = tablas.getOrPut(tabla) { mutableMapOf() }
@@ -355,6 +407,7 @@ class RemotoEnMemoria : DestinoRemoto {
 
     override suspend fun bajarDesde(marca: String?, choferId: String): CambiosRemotos {
         marcasPedidas += marca
+        fallarBajada?.let { throw it }
         return cambios
     }
 }

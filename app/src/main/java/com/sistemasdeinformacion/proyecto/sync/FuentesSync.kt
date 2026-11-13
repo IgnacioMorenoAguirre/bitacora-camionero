@@ -79,6 +79,12 @@ interface OrigenLocal {
     /** Limpia syncPendiente solo si la fila no cambió desde que se leyó (mismo modificadoLocal). */
     suspend fun marcarEnviado(item: Sincronizable)
 
+    /**
+     * Guarda la ruta del archivo ya subido sin tocar modificadoLocal ni syncPendiente, así el
+     * marcarEnviado posterior sigue coincidiendo y una edición futura no borra la ruta del servidor.
+     */
+    suspend fun guardarRutaRemota(adjuntoId: String, ruta: String)
+
     /** Guarda lo que bajó del servidor, salvo las filas que en el teléfono siguen pendientes. */
     suspend fun aplicarRemotos(c: CambiosRemotos)
 

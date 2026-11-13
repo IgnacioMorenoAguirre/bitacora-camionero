@@ -86,6 +86,20 @@ class OrigenLocalRoomTest {
         assertTrue(db.registroDao().observarAdjuntos("v1").first().isEmpty())
     }
 
+    @Test fun guardarRutaRemota_noCambiaModificadoNiPendiente() = runTest {
+        db.viajeDao().guardar(viaje("v1", pend = false))
+        val leido = adjunto("a1", "v1").copy(syncPendiente = true)
+        db.registroDao().guardar(leido)
+
+        origen.guardarRutaRemota("a1", "v1/a1.jpg")
+        val a1 = origen.pendientes().adjuntos.single()
+        assertEquals("v1/a1.jpg", a1.rutaRemota)
+        assertEquals(leido.modificadoLocal, a1.modificadoLocal)
+
+        origen.marcarEnviado(leido)
+        assertFalse(db.syncDao().adjuntoPendiente("a1")!!)
+    }
+
     @Test fun marcarEnviado_soloSiNoCambioDuranteElEnvio() = runTest {
         db.viajeDao().guardar(viaje("v1", pend = false))
         val leido = gasto("g1", "v1", mod = 1)

@@ -34,7 +34,9 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                 }
                 ResultadoSync.SinConexion -> return Result.retry()
                 is ResultadoSync.Falla -> {
+                    // Lo demás ya se envió y la bajada se aplicó; solo lo rechazado espera el reintento.
                     container.errorSync.value = r.mensaje
+                    container.preferencias.agregarRestaurados(r.rechazados)
                     return Result.retry()
                 }
             }

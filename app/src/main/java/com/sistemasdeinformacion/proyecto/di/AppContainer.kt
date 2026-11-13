@@ -66,7 +66,7 @@ class AppContainer(val context: Context) {
     val programadorSync: ProgramadorSync by lazy {
         val pendientes = db.syncDao().contarPendientes()
         if (supabaseConfigurado) {
-            ProgramadorSyncWorkManager(context, pendientes, conexion, errorSync, preferencias.viajesRestaurados).also {
+            ProgramadorSyncWorkManager(context, pendientes, conexion, errorSync, preferencias.viajesRestaurados, alcance).also {
                 it.periodico()
                 it.alGuardar() // por si quedaron pendientes de una sesión anterior
             }

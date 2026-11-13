@@ -146,6 +146,9 @@ interface SyncDao {
     /** Borra el viaje; sus registros caen con él (ON DELETE CASCADE). */
     @Query("DELETE FROM viajes WHERE id = :id") suspend fun borrarViaje(id: String)
 
+    /** Solo la ruta: no cambia modificadoLocal ni syncPendiente. */
+    @Query("UPDATE adjuntos SET rutaRemota = :ruta WHERE id = :id") suspend fun guardarRutaRemota(id: String, ruta: String)
+
     /**
      * Guarda lo que bajó del servidor en una sola transacción. Se omiten las filas que siguen pendientes
      * en el teléfono (gana la local hasta que se suba) y los registros de viajes que no existen aquí.

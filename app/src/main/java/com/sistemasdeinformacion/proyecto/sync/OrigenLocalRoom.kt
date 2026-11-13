@@ -32,6 +32,8 @@ class OrigenLocalRoom(private val dao: SyncDao) : OrigenLocal {
         else -> error("Fila sin tabla de sincronización: ${item::class.simpleName}")
     }
 
+    override suspend fun guardarRutaRemota(adjuntoId: String, ruta: String) = dao.guardarRutaRemota(adjuntoId, ruta)
+
     override suspend fun aplicarRemotos(c: CambiosRemotos) = dao.aplicarRemotos(
         viajes = c.viajes.map { it.aEntidad() },
         revisiones = c.revisiones.map { it.aEntidad() },

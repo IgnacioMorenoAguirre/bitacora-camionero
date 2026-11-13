@@ -5,9 +5,12 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 
 /** Programa la sincronización y expone su estado para la interfaz. */
 interface ProgramadorSync {
@@ -23,6 +26,8 @@ interface ProgramadorSync {
  *    la vuelta extra del [SyncWorker] o el trabajo periódico.
  *  - [periodico] sincroniza cada 15 minutos (mínimo de Android), así llegan las aprobaciones del
  *    administrador aunque el chofer no guarde nada.
+ *  - Al volver la red se reemplaza el trabajo inmediato (REPLACE): si estaba esperando un reintento
+ *    con backoff, corre al tiro en vez de esperar a que venza la espera (spec 5, punto 10).
  */
 class ProgramadorSyncWorkManager(
     context: Context,
@@ -30,12 +35,21 @@ class ProgramadorSyncWorkManager(
     conectado: Flow<Boolean>,
     ultimoError: Flow<String?>,
     viajesRestaurados: Flow<List<String>>,
+    alcance: CoroutineScope,
 ) : ProgramadorSync {
 
     private val workManager = WorkManager.getInstance(context)
 
+    init {
+        alcance.launch { volvioLaRed(conectado).collect { sincronizarAhora() } }
+    }
+
     override fun alGuardar() {
         workManager.enqueueUniqueWork(SyncWorker.TRABAJO_INMEDIATO, ExistingWorkPolicy.KEEP, SyncWorker.solicitudInmediata())
+    }
+
+    private fun sincronizarAhora() {
+        workManager.enqueueUniqueWork(SyncWorker.TRABAJO_INMEDIATO, ExistingWorkPolicy.REPLACE, SyncWorker.solicitudInmediata())
     }
 
     fun periodico() {
@@ -53,6 +67,15 @@ class ProgramadorSyncWorkManager(
         combine(pendientes, conectado, enviando, ultimoError, viajesRestaurados) { p, c, e, error, restaurados ->
             EstadoSync(pendientes = p, enviando = e, conectado = c, ultimoError = error, viajesRestaurados = restaurados)
         }
+}
+
+/** Emite cada vez que la conexión pasa de "sin red" a "con red" (no al empezar ya conectado). */
+fun volvioLaRed(conectado: Flow<Boolean>): Flow<Unit> = flow {
+    var antes: Boolean? = null
+    conectado.collect { ahora ->
+        if (antes == false && ahora) emit(Unit)
+        antes = ahora
+    }
 }
 
 /** Sin Supabase configurado: solo informa pendientes y conexión (los datos quedan en el teléfono). */
