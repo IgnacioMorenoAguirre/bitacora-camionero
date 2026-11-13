@@ -5,6 +5,14 @@ import androidx.navigation3.runtime.NavKey
 import com.sistemasdeinformacion.proyecto.di.AppContainer
 import kotlinx.serialization.Serializable
 
+// Sin sesión
+@Serializable data object Login : NavKey
+@Serializable data object Registro : NavKey
+@Serializable data object Recuperacion : NavKey
+/** Se abre desde el enlace del correo de recuperación (bitacora://recuperar). */
+@Serializable data object NuevaContrasena : NavKey
+
+// Chofer
 @Serializable data object Inicio : NavKey
 @Serializable data object MisViajes : NavKey
 @Serializable data object NuevoViaje : NavKey
@@ -13,8 +21,11 @@ import kotlinx.serialization.Serializable
 @Serializable data class Resumen(val viajeId: String) : NavKey
 @Serializable data object MiPerfil : NavKey
 
-/** Destinos de la barra inferior del chofer. */
-val destinosPrincipales: List<NavKey> = listOf(Inicio, MisViajes, MiPerfil)
+// Administrador (las pantallas llegan con la Task 13)
+@Serializable data object AdminViajes : NavKey
+@Serializable data class AdminDetalle(val viajeId: String) : NavKey
+@Serializable data object AdminReportes : NavKey
+@Serializable data object AdminCamiones : NavKey
 
 val LocalContainer = staticCompositionLocalOf<AppContainer> { error("AppContainer no disponible") }
 

@@ -3,17 +3,25 @@ package com.sistemasdeinformacion.proyecto.di
 import android.content.Context
 import com.sistemasdeinformacion.proyecto.core.RelojSistema
 import com.sistemasdeinformacion.proyecto.data.local.AppDatabase
-import com.sistemasdeinformacion.proyecto.data.local.CamionEntity
+import com.sistemasdeinformacion.proyecto.data.local.borrarTodo
 import com.sistemasdeinformacion.proyecto.data.model.Rol
-import com.sistemasdeinformacion.proyecto.data.prefs.Perfil
 import com.sistemasdeinformacion.proyecto.data.prefs.Preferencias
 import com.sistemasdeinformacion.proyecto.data.prefs.observarConexion
+import com.sistemasdeinformacion.proyecto.data.remote.AuthApiSinServidor
+import com.sistemasdeinformacion.proyecto.data.remote.AuthApiSupabase
+import com.sistemasdeinformacion.proyecto.data.remote.FuentePerfilSupabase
 import com.sistemasdeinformacion.proyecto.data.remote.SesionCifrada
+import com.sistemasdeinformacion.proyecto.data.remote.bajarCamiones
 import com.sistemasdeinformacion.proyecto.data.remote.crearSupabase
 import com.sistemasdeinformacion.proyecto.data.remote.supabaseConfigurado
+import com.sistemasdeinformacion.proyecto.data.repo.AuthRepositorio
+import com.sistemasdeinformacion.proyecto.data.repo.AuthRepositorioSupabase
+import com.sistemasdeinformacion.proyecto.data.repo.ErrorAuth
+import com.sistemasdeinformacion.proyecto.data.repo.FuentePerfil
 import com.sistemasdeinformacion.proyecto.data.repo.UbicacionRepositorioFused
 import com.sistemasdeinformacion.proyecto.data.repo.ViajesRepositorio
 import com.sistemasdeinformacion.proyecto.data.repo.ViajesRepositorioRoom
+import com.sistemasdeinformacion.proyecto.feature.auth.EnlaceRecuperacion
 import com.sistemasdeinformacion.proyecto.sync.DestinoSupabase
 import com.sistemasdeinformacion.proyecto.sync.OrigenLocalRoom
 import com.sistemasdeinformacion.proyecto.sync.ProgramadorSync
@@ -21,10 +29,12 @@ import com.sistemasdeinformacion.proyecto.sync.ProgramadorSyncLocal
 import com.sistemasdeinformacion.proyecto.sync.ProgramadorSyncWorkManager
 import com.sistemasdeinformacion.proyecto.sync.Sincronizador
 import io.github.jan.supabase.SupabaseClient
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -38,17 +48,31 @@ class AppContainer(val context: Context) {
     val conexion by lazy { observarConexion(context) }
     val ubicaciones by lazy { UbicacionRepositorioFused(context) }
 
-    /**
-     * Perfil de demostración mientras no existe el login (Task 8). Se reemplaza por el perfil
-     * guardado tras iniciar sesión.
-     */
-    val perfil = Perfil(id = "demo-chofer", nombre = "Juan Pérez", email = "chofer@demo.cl", rol = Rol.CHOFER)
+    /** Sesión de Supabase cifrada con el Keystore; la comparten el cliente y el repositorio de auth. */
+    private val sesion by lazy { SesionCifrada(context) }
 
     /** Cliente de Supabase; solo se crea si local.properties trae la URL y la llave del proyecto. */
-    val supabase: SupabaseClient by lazy { crearSupabase(SesionCifrada(context)) }
+    val supabase: SupabaseClient by lazy { crearSupabase(sesion) }
+
+    /** Lo deja MainActivity al abrir un enlace bitacora://recuperar; lo consume la navegación. */
+    val enlaceRecuperacion = MutableStateFlow(EnlaceRecuperacion.NINGUNO)
 
     /** Último error de sincronización (lo escribe el SyncWorker, lo muestra el indicador). */
     val errorSync = MutableStateFlow<String?>(null)
+
+    val auth: AuthRepositorio by lazy {
+        AuthRepositorioSupabase(
+            auth = if (supabaseConfigurado) AuthApiSupabase(supabase, sesion) else AuthApiSinServidor,
+            fuentePerfil = if (supabaseConfigurado) FuentePerfilSupabase(supabase) else FuentePerfil { throw ErrorAuth.SinServidor },
+            prefs = preferencias,
+            db = { db.borrarTodo() },
+            alEntrar = {
+                // Primera bajada: viajes del chofer (sync) y la lista de camiones.
+                programadorSync.alGuardar()
+                alcance.launch { actualizarCamiones() }
+            },
+        )
+    }
 
     /** null sin Supabase configurado: los datos quedan en el teléfono hasta que exista el proyecto. */
     val sincronizador: Sincronizador? by lazy {
@@ -75,23 +99,26 @@ class AppContainer(val context: Context) {
         }
     }
 
+    /** Las pantallas del chofer solo existen con sesión iniciada, así que el perfil ya está guardado. */
     val viajes: ViajesRepositorio by lazy {
-        ViajesRepositorioRoom(db, { perfil.id }, RelojSistema, ubicaciones, programadorSync)
+        ViajesRepositorioRoom(db, { preferencias.perfil.filterNotNull().first().id }, RelojSistema, ubicaciones, programadorSync)
+    }
+
+    /** Copia local de los camiones activos; sin señal se queda con la última que bajó. */
+    suspend fun actualizarCamiones() {
+        if (!supabaseConfigurado) return
+        try {
+            bajarCamiones(supabase, db.camionDao())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
     }
 
     init {
-        // Camiones de ejemplo para la demo; en la versión conectada se bajan desde Supabase.
+        // Con sesión de antes, se refrescan los camiones al abrir (el administrador puede haber agregado).
         alcance.launch {
-            val dao = db.camionDao()
-            if (dao.observarTodos().first().isEmpty()) {
-                dao.guardar(
-                    listOf(
-                        CamionEntity("camion-1", "KFZT21", "Volvo", "FH 460", 3.0),
-                        CamionEntity("camion-2", "HJRP54", "Scania", "R 450", 3.2),
-                        CamionEntity("camion-3", "BBCL87", "Mercedes-Benz", "Actros 2645", 2.9),
-                    )
-                )
-            }
+            if (preferencias.perfil.first() != null) actualizarCamiones()
         }
     }
 }

@@ -1,0 +1,73 @@
+package com.sistemasdeinformacion.proyecto.feature.auth
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.sistemasdeinformacion.proyecto.data.repo.AuthRepositorio
+import com.sistemasdeinformacion.proyecto.data.repo.ErrorAuth
+import com.sistemasdeinformacion.proyecto.domain.Validaciones
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+data class EstadoLogin(
+    val email: String = "",
+    val contrasena: String = "",
+    val errorEmail: String? = null,
+    val errorContrasena: String? = null,
+    val error: String? = null,
+    val cargando: Boolean = false,
+)
+
+/** Al entrar bien no hay que navegar: la raíz cambia sola cuando la sesión queda activa. */
+class LoginViewModel(private val repo: AuthRepositorio) : ViewModel() {
+
+    private val _estado = MutableStateFlow(EstadoLogin())
+    val estado: StateFlow<EstadoLogin> = _estado.asStateFlow()
+
+    fun cambiarEmail(valor: String) = _estado.update { it.copy(email = valor, errorEmail = null, error = null) }
+
+    fun cambiarContrasena(valor: String) = _estado.update { it.copy(contrasena = valor, errorContrasena = null, error = null) }
+
+    fun entrar() {
+        val e = _estado.value
+        if (e.cargando) return
+        val errorEmail = if (Validaciones.email(e.email)) null else MSJ_CORREO_INVALIDO
+        val errorContrasena = if (e.contrasena.isEmpty()) "Escribe tu contraseña." else null
+        if (errorEmail != null || errorContrasena != null) {
+            _estado.update { it.copy(errorEmail = errorEmail, errorContrasena = errorContrasena) }
+            return
+        }
+        _estado.update { it.copy(cargando = true, error = null) }
+        viewModelScope.launch {
+            val error = repo.iniciarSesion(e.email, e.contrasena).exceptionOrNull()
+            _estado.update {
+                if (error == null) {
+                    // La contraseña no queda en memoria si este ViewModel se reutiliza tras cerrar sesión.
+                    it.copy(cargando = false, contrasena = "")
+                } else {
+                    it.copy(cargando = false, error = mensajeAuth(error, "Necesitas conexión para iniciar sesión la primera vez."))
+                }
+            }
+        }
+    }
+}
+
+internal const val MSJ_CORREO_INVALIDO = "Escribe un correo válido."
+internal const val MSJ_CONTRASENA_INVALIDA = "Usa al menos 8 caracteres, con letras y números."
+internal const val MSJ_NO_COINCIDEN = "Las contraseñas no coinciden."
+
+/** Mensaje corto para el chofer; [sinRed] depende de lo que se estaba haciendo. */
+internal fun mensajeAuth(e: Throwable, sinRed: String): String = when (e) {
+    ErrorAuth.CredencialesInvalidas -> "Correo o contraseña incorrectos."
+    ErrorAuth.SinConexion -> sinRed
+    ErrorAuth.CorreoRegistrado -> "Ya existe una cuenta con ese correo. Inicia sesión."
+    ErrorAuth.ContrasenaDebil -> "Esa contraseña es muy fácil de adivinar. Prueba con otra."
+    ErrorAuth.MismaContrasena -> "La contraseña nueva debe ser distinta de la anterior."
+    ErrorAuth.DemasiadosIntentos -> "Demasiados intentos. Espera unos minutos y vuelve a probar."
+    ErrorAuth.CuentaInactiva -> "Tu cuenta está desactivada. Habla con el administrador."
+    ErrorAuth.EnlaceVencido -> "El enlace venció o ya se usó. Pide uno nuevo."
+    ErrorAuth.SinServidor -> "Falta configurar el servidor de la app."
+    else -> "No se pudo completar. Intenta de nuevo."
+}

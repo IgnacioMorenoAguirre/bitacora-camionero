@@ -8,36 +8,53 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sistemasdeinformacion.proyecto.data.prefs.Perfil
 import com.sistemasdeinformacion.proyecto.sync.EstadoSync
+import com.sistemasdeinformacion.proyecto.ui.componentes.BotonSecundario
 import com.sistemasdeinformacion.proyecto.ui.componentes.IndicadorSync
 import com.sistemasdeinformacion.proyecto.ui.navegacion.LocalContainer
 import com.sistemasdeinformacion.proyecto.ui.theme.Bitacora
 import kotlinx.coroutines.launch
 
-/** Perfil básico. Cerrar sesión y "Sincronizar ahora" llegan con las Tasks 6 y 8. */
+/** Perfil de quien inició sesión, estado de la sincronización, tema y cierre de sesión. */
 @Composable
-fun PerfilScreen() {
+fun PerfilScreen(p: Perfil) {
     val container = LocalContainer.current
     val claro by container.preferencias.temaClaro.collectAsStateWithLifecycle(false)
     val sync by remember { container.programadorSync.estado }.collectAsStateWithLifecycle(EstadoSync())
     val alcance = rememberCoroutineScope()
     val c = Bitacora.colores
-    val p = container.perfil
+    var confirmar by rememberSaveable { mutableStateOf(false) }
+    var cerrando by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+    val cerrarSesion = {
+        cerrando = true
+        // En el alcance de la app: al borrarse la sesión esta pantalla sale de la composición.
+        container.alcance.launch { container.auth.cerrarSesion() }
+        Unit
+    }
+
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {
         Spacer(Modifier.height(12.dp))
         Text("Perfil", style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(16.dp))
@@ -71,6 +88,28 @@ fun PerfilScreen() {
                 )
             }
         }
+        Spacer(Modifier.height(20.dp))
+        BotonSecundario(
+            texto = if (cerrando) "Cerrando sesión…" else "Cerrar sesión",
+            onClick = { if (sync.pendientes > 0) confirmar = true else cerrarSesion() },
+            habilitado = !cerrando,
+        )
+        Spacer(Modifier.height(16.dp))
+    }
+
+    if (confirmar) {
+        AlertDialog(
+            onDismissRequest = { confirmar = false },
+            title = { Text("¿Cerrar sesión?") },
+            text = { Text("Se borrarán los datos guardados en este teléfono. Los registros sin enviar se perderán.") },
+            confirmButton = {
+                TextButton(onClick = { confirmar = false; cerrarSesion() }) { Text("Cerrar sesión", color = c.peligro) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmar = false }) { Text("Cancelar", color = MaterialTheme.colorScheme.onBackground) }
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        )
     }
 }
 

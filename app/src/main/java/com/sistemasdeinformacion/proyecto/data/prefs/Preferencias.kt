@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.sistemasdeinformacion.proyecto.data.model.Rol
 import com.sistemasdeinformacion.proyecto.data.model.desdeValor
+import com.sistemasdeinformacion.proyecto.data.repo.PerfilLocal
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -23,7 +24,7 @@ data class Perfil(val id: String, val nombre: String, val email: String, val rol
 private val Context.dataStore by preferencesDataStore("preferencias")
 
 /** Preferencias locales: tema, perfil en caché (para abrir sin señal) y marca de la última bajada. */
-class Preferencias(private val context: Context) {
+class Preferencias(private val context: Context) : PerfilLocal {
     private val claveTemaClaro = booleanPreferencesKey("tema_claro")
     private val clavePerfilId = stringPreferencesKey("perfil_id")
     private val clavePerfilNombre = stringPreferencesKey("perfil_nombre")
@@ -38,12 +39,12 @@ class Preferencias(private val context: Context) {
         context.dataStore.edit { it[claveTemaClaro] = valor }
     }
 
-    val perfil: Flow<Perfil?> = context.dataStore.data.map { p ->
+    override val perfil: Flow<Perfil?> = context.dataStore.data.map { p ->
         val id = p[clavePerfilId] ?: return@map null
         Perfil(id, p[clavePerfilNombre].orEmpty(), p[clavePerfilEmail].orEmpty(), desdeValor(p[clavePerfilRol], Rol.CHOFER))
     }
 
-    suspend fun guardarPerfil(perfil: Perfil?) {
+    override suspend fun guardarPerfil(perfil: Perfil?) {
         context.dataStore.edit {
             if (perfil == null) {
                 it.remove(clavePerfilId); it.remove(clavePerfilNombre); it.remove(clavePerfilEmail); it.remove(clavePerfilRol)
@@ -79,7 +80,7 @@ class Preferencias(private val context: Context) {
     }
 
     /** Al cerrar sesión: borra perfil y marcas, conserva el tema elegido. */
-    suspend fun limpiar() {
+    override suspend fun limpiar() {
         context.dataStore.edit { p ->
             val tema = p[claveTemaClaro]
             p.clear()

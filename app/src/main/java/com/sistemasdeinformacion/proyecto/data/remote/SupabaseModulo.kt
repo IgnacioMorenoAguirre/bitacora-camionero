@@ -16,6 +16,11 @@ val supabaseConfigurado: Boolean
 /** Bucket privado donde se guardan las fotos y firmas de entrega. */
 const val BUCKET_ADJUNTOS = "adjuntos"
 
+/** Enlace del correo de recuperación (debe estar en Authentication → URL Configuration de Supabase). */
+const val ESQUEMA_ENLACE = "bitacora"
+const val HOST_RECUPERAR = "recuperar"
+const val ENLACE_RECUPERAR = "$ESQUEMA_ENLACE://$HOST_RECUPERAR"
+
 fun crearSupabase(sesion: SessionManager): SupabaseClient =
     createSupabaseClient(
         supabaseUrl = BuildConfig.SUPABASE_URL,
@@ -25,6 +30,10 @@ fun crearSupabase(sesion: SessionManager): SupabaseClient =
             sessionManager = sesion
             alwaysAutoRefresh = true
             autoLoadFromStorage = true
+            // handleDeeplinks solo acepta enlaces con este esquema y host (flujo implícito: la sesión
+            // de recuperación llega en el fragmento del enlace).
+            scheme = ESQUEMA_ENLACE
+            host = HOST_RECUPERAR
         }
         install(Postgrest)
         install(Storage)

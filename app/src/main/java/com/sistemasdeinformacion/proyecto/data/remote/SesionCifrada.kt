@@ -9,7 +9,10 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.jan.supabase.auth.SessionManager
 import io.github.jan.supabase.auth.user.UserSession
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -45,6 +48,9 @@ class SesionCifrada(private val context: Context) : SessionManager {
     }
 
     suspend fun haySesion(): Boolean = context.almacenSesion.data.first()[clave] != null
+
+    /** Cambia a false cuando la librería borra la sesión (cierre o token rechazado por el servidor). */
+    val guardada: Flow<Boolean> = context.almacenSesion.data.map { it[clave] != null }.distinctUntilChanged()
 
     // ---------- cifrado ----------
     private fun llave(): SecretKey {

@@ -119,9 +119,9 @@ class InicioViewModel(
 }
 
 @Composable
-fun InicioScreen(nav: Navegador) {
+fun InicioScreen(nav: Navegador, nombre: String) {
     val container = LocalContainer.current
-    val vm = viewModel { InicioViewModel(container.perfil.nombre, container.viajes, container.programadorSync) }
+    val vm = viewModel { InicioViewModel(nombre, container.viajes, container.programadorSync) }
     val e by vm.estado.collectAsStateWithLifecycle()
     var hoja by remember { mutableStateOf<HojaRegistro?>(null) }
     val c = Bitacora.colores
