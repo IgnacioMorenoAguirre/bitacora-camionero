@@ -73,7 +73,7 @@ fun MisViajesScreen(nav: Navegador) {
             )
         } else {
             LazyColumn(contentPadding = PaddingValues(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(visibles, key = { it.id }) { v ->
+                items(visibles, key = { it.id }, contentType = { "viaje" }) { v ->
                     FilaViaje(v, Modifier.animateItem()) { nav.ir(HojaDeRuta(v.id)) }
                 }
             }

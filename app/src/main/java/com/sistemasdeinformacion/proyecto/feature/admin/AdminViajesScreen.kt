@@ -84,15 +84,15 @@ fun AdminViajesScreen(nav: Navegador) {
                 contentPadding = PaddingValues(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                item(key = "filtros") { Filtros(e, vm) }
+                item(key = "filtros", contentType = "filtros") { Filtros(e, vm) }
                 if (l.filas.isEmpty()) {
-                    item(key = "vacio") { EstadoVacio("Sin viajes", "No hay viajes con estos filtros.") }
+                    item(key = "vacio", contentType = "vacio") { EstadoVacio("Sin viajes", "No hay viajes con estos filtros.") }
                 }
-                items(l.filas, key = { it.resumen.id }) { f ->
+                items(l.filas, key = { it.resumen.id }, contentType = { "viaje" }) { f ->
                     FilaViajeAdmin(f, Modifier.animateItem()) { nav.ir(AdminDetalle(f.resumen.id)) }
                 }
                 if (l.limiteAlcanzado) {
-                    item(key = "limite") {
+                    item(key = "limite", contentType = "limite") {
                         Text(
                             "Se muestran los viajes más recientes. Usa los filtros para ver otros.",
                             style = MaterialTheme.typography.bodyMedium, color = Bitacora.colores.textoSuave,

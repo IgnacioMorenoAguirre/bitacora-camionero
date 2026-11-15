@@ -26,7 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -70,24 +70,28 @@ fun CaminoRuta(hitos: List<Hito>, modifier: Modifier = Modifier, animarEntrada: 
     Column(
         modifier
             .fillMaxWidth()
-            .drawBehind {
+            .drawWithCache {
                 val x = ANCHO_CARRIL.toPx() / 2
                 val anchoCalzada = 12.dp.toPx()
-                drawRoundRect(
-                    color = c.camino,
-                    topLeft = Offset(x - anchoCalzada / 2, 4.dp.toPx()),
-                    size = Size(anchoCalzada, (size.height - 8.dp.toPx()).coerceAtLeast(0f)),
-                    cornerRadius = CornerRadius(anchoCalzada / 2),
-                )
-                val fin = (if (yObjetivo > 0f) yObjetivo else size.height) * progreso.value
-                if (fin > 8.dp.toPx()) {
-                    drawLine(
-                        color = c.acento,
-                        start = Offset(x, 8.dp.toPx()),
-                        end = Offset(x, fin),
-                        strokeWidth = 2.5.dp.toPx(),
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx())),
+                // Se crea una vez por tamaño: el progreso y el hito actual se leen solo al dibujar.
+                val trazo = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx()))
+                onDrawBehind {
+                    drawRoundRect(
+                        color = c.camino,
+                        topLeft = Offset(x - anchoCalzada / 2, 4.dp.toPx()),
+                        size = Size(anchoCalzada, (size.height - 8.dp.toPx()).coerceAtLeast(0f)),
+                        cornerRadius = CornerRadius(anchoCalzada / 2),
                     )
+                    val fin = (if (yObjetivo > 0f) yObjetivo else size.height) * progreso.value
+                    if (fin > 8.dp.toPx()) {
+                        drawLine(
+                            color = c.acento,
+                            start = Offset(x, 8.dp.toPx()),
+                            end = Offset(x, fin),
+                            strokeWidth = 2.5.dp.toPx(),
+                            pathEffect = trazo,
+                        )
+                    }
                 }
             }
     ) {

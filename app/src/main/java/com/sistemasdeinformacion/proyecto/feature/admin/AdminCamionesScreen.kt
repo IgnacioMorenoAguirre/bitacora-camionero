@@ -90,7 +90,7 @@ fun AdminCamionesScreen() {
                         contentPadding = PaddingValues(bottom = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        items(l.camiones, key = { it.id ?: it.patente }) { camion ->
+                        items(l.camiones, key = { it.id ?: it.patente }, contentType = { "camion" }) { camion ->
                             FilaCamion(camion, Modifier.animateItem()) { vm.editar(camion) }
                         }
                     }
