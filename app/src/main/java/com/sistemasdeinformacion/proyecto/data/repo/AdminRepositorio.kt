@@ -22,6 +22,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.postgrest.exception.PostgrestRestException
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.query.filter.PostgrestFilterBuilder
 import io.github.jan.supabase.realtime.PostgresAction
@@ -133,6 +134,7 @@ sealed class ErrorAdmin(mensaje: String) : Exception(mensaje) {
     data object PatenteRepetida : ErrorAdmin("Ya existe un camión con esa patente.")
     data object PatenteInvalida : ErrorAdmin("Revisa la patente: usa el formato BBBB12 o AB1234.")
     data object SinPermiso : ErrorAdmin("Tu cuenta no tiene permiso de administrador.")
+    data object ViajeCambio : ErrorAdmin("El viaje cambió mientras lo revisabas. Revísalo de nuevo.")
     data object Desconocido : ErrorAdmin("No se pudo completar. Vuelve a intentar.")
 }
 
@@ -289,12 +291,20 @@ class AdminRepositorioSupabase(
             // Al aprobar se borra el comentario de una observación anterior.
             if (aprobado || comentario.isNullOrBlank()) put("comentario_validacion", JsonNull) else put("comentario_validacion", comentario.trim())
         }
+        // Solo si sigue "pendiente": si otro administrador ya lo revisó, no se pisa su decisión.
         val filas = supabase.from("viajes").update(cambios) {
             select()
-            filter { eq("id", viajeId) }
+            filter {
+                eq("id", viajeId)
+                eq("validacion", EstadoValidacion.PENDIENTE.valor)
+            }
         }.data.let { json.decodeFromString<List<JsonObject>>(it) }
-        // Si la RLS no deja tocar la fila, PostgREST responde 200 sin filas.
-        if (filas.isEmpty()) throw ErrorAdmin.SinPermiso
+        if (filas.isEmpty()) {
+            // Sin filas: o el viaje ya no está pendiente, o la RLS no deja tocarlo (PostgREST responde 200).
+            val visible = supabase.from("viajes").select(Columns.list("id")) { filter { eq("id", viajeId) } }
+                .data.let { json.decodeFromString<List<JsonObject>>(it) }
+            throw if (visible.isEmpty()) ErrorAdmin.SinPermiso else ErrorAdmin.ViajeCambio
+        }
     }
 
     override suspend fun urlAdjunto(ruta: String): String = traducir {

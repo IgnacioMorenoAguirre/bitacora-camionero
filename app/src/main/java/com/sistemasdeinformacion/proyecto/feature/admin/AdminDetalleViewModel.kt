@@ -143,6 +143,8 @@ class AdminDetalleViewModel(
                 _estado.update {
                     it.copy(guardando = false, errorValidacion = (error as? ErrorAdmin)?.message ?: "No se pudo guardar. Vuelve a intentar.")
                 }
+                // Otro administrador o una corrección del chofer lo cambió: se muestra lo que hay ahora.
+                if (error is ErrorAdmin.ViajeCambio) cargar()
             }
         }
     }

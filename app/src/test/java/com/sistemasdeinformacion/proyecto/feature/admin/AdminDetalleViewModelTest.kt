@@ -1,5 +1,6 @@
 package com.sistemasdeinformacion.proyecto.feature.admin
 
+import com.sistemasdeinformacion.proyecto.data.model.EstadoValidacion
 import com.sistemasdeinformacion.proyecto.data.remote.CamionDto
 import com.sistemasdeinformacion.proyecto.data.remote.EventoDto
 import com.sistemasdeinformacion.proyecto.data.remote.PerfilDto
@@ -118,6 +119,23 @@ class AdminDetalleViewModelTest {
 
         assertTrue(vm.estado.value.muestraRevision)
         assertTrue(vm.estado.value.puedeAprobar)
+    }
+
+    @Test fun aprobar_viajeQueCambioEnElServidor_avisaYRecarga() = runTest {
+        // Otro administrador lo observó después de que esta pantalla cargó.
+        val repo = object : AdminFalso(detalle(estado = "finalizado", llegada = salida + 3 * hora)) {
+            override suspend fun validar(viajeId: String, aprobado: Boolean, comentario: String?): Result<Unit> {
+                detalleViaje = detalleViaje?.let { it.copy(viaje = it.viaje.copy(validacion = "observado")) }
+                return Result.failure(ErrorAdmin.ViajeCambio)
+            }
+        }
+        val vm = AdminDetalleViewModel("v1", repo, conexion) { salida + 4 * hora }
+
+        vm.aprobar()
+
+        assertEquals("El viaje cambió mientras lo revisabas. Revísalo de nuevo.", vm.estado.value.errorValidacion)
+        assertEquals(EstadoValidacion.OBSERVADO, vm.estado.value.validacion)
+        assertFalse(vm.estado.value.puedeAprobar)
     }
 
     @Test fun sinConexion_muestraEstadoSinRed() = runTest {
