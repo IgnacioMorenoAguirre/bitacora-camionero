@@ -12,9 +12,6 @@ const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 
 function svg(ancho, alto, cuerpo) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${ancho}" height="${alto}" viewBox="0 0 ${ancho} ${alto}" font-family="Arial">
-<defs>
-  <marker id="flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${GRIS}"/></marker>
-</defs>
 <rect width="100%" height="100%" fill="#FFFFFF"/>
 ${cuerpo}
 </svg>`;
@@ -28,10 +25,22 @@ function caja(x, y, w, h, lineas, { relleno = "#FFFFFF", borde = VERDE, tam = 14
   return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${radio}" fill="${relleno}" stroke="${borde}" stroke-width="2"/>` +
     lineas.map((l, i) => texto(x + w / 2, y0 + i * alto, l, { tam, peso: titulo && i === 0 ? "bold" : "normal" })).join("");
 }
-const linea = (x1, y1, x2, y2, { flecha = true, color = GRIS, guion = false } = {}) =>
-  `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="2" ${guion ? 'stroke-dasharray="6 4"' : ""} ${flecha ? 'marker-end="url(#flecha)"' : ""}/>`;
-const poli = (pts, { flecha = true } = {}) =>
-  `<polyline points="${pts.map(p => p.join(",")).join(" ")}" fill="none" stroke="${GRIS}" stroke-width="2" ${flecha ? 'marker-end="url(#flecha)"' : ""}/>`;
+// Puntas de flecha dibujadas a mano (resvg no rota bien los markers con orient auto-start-reverse).
+function punta(x1, y1, x2, y2, color = GRIS) {
+  const a = Math.atan2(y2 - y1, x2 - x1), l = 11, w = 5.5;
+  const bx = x2 - l * Math.cos(a), by = y2 - l * Math.sin(a);
+  const p1 = [bx + w * Math.sin(a), by - w * Math.cos(a)], p2 = [bx - w * Math.sin(a), by + w * Math.cos(a)];
+  return `<polygon points="${x2},${y2} ${p1[0].toFixed(1)},${p1[1].toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}" fill="${color}"/>`;
+}
+const linea = (x1, y1, x2, y2, { flecha = true, doble = false, color = GRIS, guion = false } = {}) =>
+  `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="2" ${guion ? 'stroke-dasharray="6 4"' : ""}/>` +
+  (flecha ? punta(x1, y1, x2, y2, color) : "") + (doble ? punta(x2, y2, x1, y1, color) : "");
+const poli = (pts, { flecha = true, doble = false, color = GRIS, guion = false } = {}) => {
+  const n = pts.length;
+  return `<polyline points="${pts.map(p => p.join(",")).join(" ")}" fill="none" stroke="${color}" stroke-width="2" ${guion ? 'stroke-dasharray="6 4"' : ""}/>` +
+    (flecha ? punta(pts[n - 2][0], pts[n - 2][1], pts[n - 1][0], pts[n - 1][1], color) : "") +
+    (doble ? punta(pts[1][0], pts[1][1], pts[0][0], pts[0][1], color) : "");
+};
 
 function guardar(nombre, contenido) {
   const png = new Resvg(contenido, { fitTo: { mode: "zoom", value: 2 }, font: { loadSystemFonts: true, defaultFontFamily: "Arial" } }).render().asPng();
@@ -187,15 +196,20 @@ function tablaFisica(x, y, nombre, cols, w = 330) {
   for (const n of ["revisiones", "eventos", "gastos", "novedades", "adjuntos"]) {
     const t = tablaFisica(850, y, n, TABLAS[n], 320); derecha.push(t); y += t.h + 22;
   }
-  // FKs: viajes.chofer_id -> perfiles.id ; viajes.validado_por -> perfiles.id ; viajes.camion_id -> camiones.id
+  // FKs. Las que llegan a una misma tabla se juntan en una sola línea con una sola flecha.
   const filaY = (t, i) => t.y + 46 + i * 19 - 5;
-  c += poli([[viajes.x, filaY(viajes, 1)], [375, filaY(viajes, 1)], [375, filaY(perfiles, 0)], [perfiles.x + perfiles.w + 2, filaY(perfiles, 0)]]);
-  c += poli([[viajes.x, filaY(viajes, 18)], [390, filaY(viajes, 18)], [390, filaY(perfiles, 0) + 8], [perfiles.x + perfiles.w + 2, filaY(perfiles, 0) + 8]]);
-  c += poli([[viajes.x, filaY(viajes, 2)], [360, filaY(viajes, 2)], [360, filaY(camiones, 0)], [camiones.x + camiones.w + 2, filaY(camiones, 0)]]);
-  derecha.forEach((t, i) => {
-    const xm = 800 + i * 8;
-    c += poli([[t.x, filaY(t, 1)], [xm, filaY(t, 1)], [xm, filaY(viajes, 0) + i * 3], [viajes.x + viajes.w + 2, filaY(viajes, 0) + i * 3]]);
-  });
+  // viajes.chofer_id y viajes.validado_por -> perfiles.id
+  c += linea(viajes.x, filaY(viajes, 1), 365, filaY(viajes, 1), { flecha: false });
+  c += linea(viajes.x, filaY(viajes, 18), 365, filaY(viajes, 18), { flecha: false });
+  c += linea(365, filaY(viajes, 18), 365, filaY(perfiles, 0), { flecha: false });
+  c += linea(365, filaY(perfiles, 0), perfiles.x + perfiles.w + 2, filaY(perfiles, 0));
+  // viajes.camion_id -> camiones.id
+  c += poli([[viajes.x, filaY(viajes, 2)], [395, filaY(viajes, 2)], [395, filaY(camiones, 0)], [camiones.x + camiones.w + 2, filaY(camiones, 0)]]);
+  // viaje_id de las tablas hijas -> viajes.id
+  const ultimo = derecha[derecha.length - 1];
+  derecha.forEach(t => { c += linea(t.x, filaY(t, 1), 800, filaY(t, 1), { flecha: false }); });
+  c += linea(800, filaY(ultimo, 1), 800, filaY(viajes, 0), { flecha: false });
+  c += linea(800, filaY(viajes, 0), viajes.x + viajes.w + 2, filaY(viajes, 0));
   c += perfiles.s + camiones.s + viajes.s + derecha.map(t => t.s).join("");
   const alto = Math.max(y, viajes.y + viajes.h + 30, camiones.y + camiones.h + 30);
   c += texto(30, alto - 4, "Todas las tablas tienen además eliminado (boolean) y creado_en / actualizado_en. Flechas: clave foránea hacia la clave primaria.", { tam: 12, color: GRIS, ancla: "start", estilo: "italic" });
@@ -220,8 +234,10 @@ function tablaFisica(x, y, nombre, cols, w = 330) {
     ["2FN", "Cada tabla tiene clave simple", "Toda tabla usa un id UUID como clave primaria, así que no hay dependencias parciales de una clave compuesta."],
     ["3FN", "Se quitan dependencias transitivas", "Marca, modelo y rendimiento dependen de la patente, no del viaje: van a camiones. Nombre y RUT van a perfiles."],
   ];
+  c += linea(55, 102, 55, 128);
   pasos.forEach(([n, t1, t2], i) => {
     const y = 130 + i * 78;
+    if (i > 0) c += linea(55, y - 18, 55, y - 2);
     c += `<rect x="20" y="${y}" width="70" height="60" rx="8" fill="${VERDE}"/>` + texto(55, y + 37, n, { tam: 18, peso: "bold", color: "#FFFFFF" });
     c += texto(105, y + 24, t1, { tam: 14, peso: "bold", ancla: "start" });
     c += texto(105, y + 46, t2, { tam: 13, ancla: "start", color: "#3A3F44" });
@@ -285,20 +301,31 @@ function tablaFisica(x, y, nombre, cols, w = 330) {
 // ---------------------------------------------------------------- arquitectura
 (function arquitectura() {
   let c = "";
-  c += `<rect x="20" y="20" width="560" height="380" rx="14" fill="#F4F6F5" stroke="${LINEA}"/>` + texto(300, 46, "Teléfono Android (funciona sin señal)", { tam: 15, peso: "bold" });
+  c += `<rect x="20" y="20" width="560" height="390" rx="14" fill="#F4F6F5" stroke="${LINEA}"/>` + texto(300, 46, "Teléfono Android (funciona sin señal)", { tam: 15, peso: "bold" });
   const capas = [["Pantallas (Jetpack Compose)", "chofer y administrador"], ["Modelos de vista (MVVM)", "estado y validaciones"], ["Repositorios", "reglas del negocio"], ["Room / SQLite", "fuente de datos del chofer"]];
   capas.forEach(([a, b], i) => {
-    c += caja(60, 64 + i * 80, 300, 60, [a, b], { titulo: true, tam: 13 });
-    if (i < 3) c += linea(210, 124 + i * 80, 210, 142 + i * 80);
+    c += caja(60, 64 + i * 84, 300, 60, [a, b], { titulo: true, tam: 13 });
+    if (i < 3) c += linea(210, 124 + i * 84, 210, 148 + i * 84);
   });
-  c += caja(400, 304, 160, 60, ["WorkManager", "sincronización"], { titulo: true, tam: 13, relleno: "#FFF6DD", borde: AMBAR });
-  c += linea(360, 334, 398, 334);
-  c += caja(400, 144, 160, 60, ["GPS del teléfono", "sin internet"], { titulo: true, tam: 13 });
-  c += linea(400, 174, 362, 254 - 70);
-  c += `<rect x="640" y="20" width="300" height="380" rx="14" fill="${FONDO_VERDE}" stroke="${VERDE}"/>` + texto(790, 46, "Supabase (nube)", { tam: 15, peso: "bold" });
+  // GPS -> Repositorios ; Room <-> WorkManager
+  c += caja(400, 232, 160, 60, ["GPS del teléfono", "funciona sin internet"], { titulo: true, tam: 13 });
+  c += linea(400, 262, 362, 262);
+  c += caja(400, 316, 160, 60, ["WorkManager", "sincronización"], { titulo: true, tam: 13, relleno: "#FFF6DD", borde: AMBAR });
+  c += linea(362, 346, 398, 346, { doble: true });
+  // nube
+  c += `<rect x="640" y="20" width="300" height="390" rx="14" fill="${FONDO_VERDE}" stroke="${VERDE}"/>` + texto(790, 46, "Supabase (nube)", { tam: 15, peso: "bold" });
   const nube = [["PostgreSQL", "tablas con RLS y triggers"], ["Auth", "correo y contraseña"], ["Storage", "fotos y firmas"], ["Realtime", "lista en vivo del admin"]];
-  nube.forEach(([a, b], i) => { c += caja(670, 64 + i * 80, 240, 60, [a, b], { titulo: true, tam: 13 }); });
-  c += linea(560, 334, 668, 104);
-  c += texto(615, 205, "HTTPS", { tam: 12, color: GRIS });
-  guardar("07-arquitectura", svg(960, 420, c));
+  nube.forEach(([a, b], i) => { c += caja(690, 64 + i * 84, 230, 60, [a, b], { titulo: true, tam: 13 }); });
+  // bus de la API: PostgreSQL, Auth y Storage
+  c += linea(664, 94, 664, 262, { flecha: false });
+  [94, 178, 262].forEach(y => { c += linea(664, y, 688, y); });
+  // WorkManager <-> nube (HTTPS)
+  c += poli([[562, 346], [610, 346], [610, 136], [662, 136]], { doble: true });
+  c += `<rect x="584" y="226" width="52" height="20" fill="#FFFFFF"/>` + texto(610, 241, "HTTPS", { tam: 12, peso: "bold", color: GRIS });
+  // Realtime -> Pantallas (avisos en vivo para el administrador)
+  c += poli([[805, 376], [805, 432], [40, 432], [40, 94], [58, 94]], { guion: true, color: VERDE });
+  c += `<rect x="330" y="422" width="270" height="20" fill="#FFFFFF"/>` + texto(465, 437, "avisos en vivo a la lista del administrador", { tam: 12, color: VERDE });
+  // leyenda
+  c += texto(20, 470, "Flecha simple: usa o entrega datos.  Doble: envía y recibe.  WorkManager sube lo pendiente y baja los cambios (por ejemplo, la aprobación).", { tam: 12, color: GRIS, ancla: "start", estilo: "italic" });
+  guardar("07-arquitectura", svg(960, 485, c));
 })();
