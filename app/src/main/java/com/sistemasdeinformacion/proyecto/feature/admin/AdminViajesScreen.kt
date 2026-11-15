@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -43,12 +45,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sistemasdeinformacion.proyecto.data.model.EstadoValidacion
 import com.sistemasdeinformacion.proyecto.data.model.EstadoViaje
 import com.sistemasdeinformacion.proyecto.data.model.desdeValor
-import com.sistemasdeinformacion.proyecto.data.remote.PerfilDto
 import com.sistemasdeinformacion.proyecto.data.remote.desdeIso
 import com.sistemasdeinformacion.proyecto.domain.Formatos
 import com.sistemasdeinformacion.proyecto.ui.componentes.EstadoVacio
 import com.sistemasdeinformacion.proyecto.ui.componentes.HitoKm
-import com.sistemasdeinformacion.proyecto.ui.componentes.SelectorOpciones
 import com.sistemasdeinformacion.proyecto.ui.navegacion.AdminDetalle
 import com.sistemasdeinformacion.proyecto.ui.navegacion.LocalContainer
 import com.sistemasdeinformacion.proyecto.ui.navegacion.Navegador
@@ -57,8 +57,6 @@ import com.sistemasdeinformacion.proyecto.ui.theme.Bitacora
 /** Textos del estado sin red; los comparten las pantallas del administrador. */
 const val TITULO_SIN_CONEXION = "Sin conexión"
 const val TEXTO_SIN_CONEXION = "Las pantallas de administración necesitan internet."
-
-internal val VerdeAprobado = Color(0xFF4CD97B)
 
 @Composable
 fun AdminViajesScreen(nav: Navegador) {
@@ -109,33 +107,41 @@ private fun CentroVertical(contenido: @Composable () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { contenido() }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Filtros(e: EstadoAdminViajes, vm: AdminViajesViewModel) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SelectorOpciones(Periodo.entries, e.periodo, { it.etiqueta }, vm::elegirPeriodo)
-        SelectorOpciones(listOf<EstadoViaje?>(null) + EstadoViaje.entries, e.filtro.estado, { it?.etiqueta ?: "Todos" }, vm::elegirEstado)
-        SelectorOpciones(
-            listOf<EstadoValidacion?>(null) + EstadoValidacion.entries, e.filtro.validacion,
-            { it?.etiqueta ?: "Toda validación" }, vm::elegirValidacion,
+    // Cuatro menús en una fila que baja de línea solo si no caben (antes eran cuatro filas de chips).
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        FiltroMenu("Período", Periodo.entries, e.periodo, { it.etiqueta }, vm::elegirPeriodo)
+        FiltroMenu(
+            "Estado", listOf<EstadoViaje?>(null) + EstadoViaje.entries, e.filtro.estado,
+            { it?.etiqueta ?: "Todos" }, vm::elegirEstado,
         )
-        if (e.choferes.isNotEmpty()) SelectorChofer(e.choferes, e.filtro.choferId, vm::elegirChofer)
-        Spacer(Modifier.height(4.dp))
+        FiltroMenu(
+            "Validación", listOf<EstadoValidacion?>(null) + EstadoValidacion.entries, e.filtro.validacion,
+            { it?.etiqueta ?: "Todas" }, vm::elegirValidacion,
+        )
+        if (e.choferes.isNotEmpty()) {
+            FiltroMenu(
+                "Chofer", listOf<String?>(null) + e.choferes.map { it.id }, e.filtro.choferId,
+                { id -> e.choferes.firstOrNull { it.id == id }?.nombreCompleto ?: "Todos" }, vm::elegirChofer,
+            )
+        }
     }
 }
 
+/** Botón que muestra el filtro elegido y abre un menú con las opciones. */
 @Composable
-private fun SelectorChofer(choferes: List<PerfilDto>, elegido: String?, onElegir: (String?) -> Unit) {
+private fun <T> FiltroMenu(titulo: String, opciones: List<T>, elegida: T, etiqueta: (T) -> String, onElegir: (T) -> Unit) {
     var abierto by remember { mutableStateOf(false) }
-    val nombre = choferes.firstOrNull { it.id == elegido }?.nombreCompleto ?: "Todos los choferes"
     Box {
         TextButton(onClick = { abierto = true }) {
-            Text("Chofer: $nombre", color = Bitacora.colores.acento, style = MaterialTheme.typography.labelLarge)
+            Text("$titulo: ${etiqueta(elegida)}", color = Bitacora.colores.acento, style = MaterialTheme.typography.labelLarge)
             Icon(Icons.Outlined.ArrowDropDown, contentDescription = null, tint = Bitacora.colores.acento)
         }
         DropdownMenu(expanded = abierto, onDismissRequest = { abierto = false }) {
-            DropdownMenuItem(text = { Text("Todos los choferes") }, onClick = { onElegir(null); abierto = false })
-            choferes.forEach { p ->
-                DropdownMenuItem(text = { Text(p.nombreCompleto) }, onClick = { onElegir(p.id); abierto = false })
+            opciones.forEach { op ->
+                DropdownMenuItem(text = { Text(etiqueta(op)) }, onClick = { onElegir(op); abierto = false })
             }
         }
     }
@@ -185,7 +191,7 @@ internal fun etiquetaEstado(estado: EstadoViaje, validacion: EstadoValidacion): 
     return when {
         estado == EstadoViaje.EN_CURSO -> "En curso" to c.acento
         estado == EstadoViaje.CANCELADO -> "Cancelado" to c.textoSuave
-        validacion == EstadoValidacion.APROBADO -> "Aprobado" to VerdeAprobado
+        validacion == EstadoValidacion.APROBADO -> "Aprobado" to Bitacora.colores.exito
         validacion == EstadoValidacion.OBSERVADO -> "Observado" to c.peligro
         else -> "Por revisar" to MaterialTheme.colorScheme.onBackground
     }
