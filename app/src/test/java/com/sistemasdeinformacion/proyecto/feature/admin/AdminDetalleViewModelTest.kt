@@ -8,6 +8,7 @@ import com.sistemasdeinformacion.proyecto.data.remote.ViajeDto
 import com.sistemasdeinformacion.proyecto.data.remote.aIso
 import com.sistemasdeinformacion.proyecto.data.repo.AdminRepositorio
 import com.sistemasdeinformacion.proyecto.data.repo.DetalleViajeRemoto
+import com.sistemasdeinformacion.proyecto.data.repo.ErrorAdmin
 import com.sistemasdeinformacion.proyecto.data.repo.FiltroViajes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -112,14 +113,15 @@ class AdminDetalleViewModelTest {
 }
 
 /** Repositorio de administración en memoria. */
-class AdminFalso(var detalleViaje: DetalleViajeRemoto) : AdminRepositorio {
+open class AdminFalso(var detalleViaje: DetalleViajeRemoto? = null) : AdminRepositorio {
     val validaciones = mutableListOf<Triple<String, Boolean, String?>>()
     val guardados = mutableListOf<CamionDto>()
 
     override fun viajesEnVivo(filtro: FiltroViajes): Flow<List<ResumenViajeDto>> = flowOf(emptyList())
     override suspend fun excesosDeHoras(viajes: List<ResumenViajeDto>): Set<String> = emptySet()
     override suspend fun choferes(): List<PerfilDto> = emptyList()
-    override suspend fun detalle(viajeId: String): DetalleViajeRemoto = detalleViaje
+    override suspend fun detalle(viajeId: String): DetalleViajeRemoto = detalleViaje ?: throw ErrorAdmin.ViajeNoEncontrado
+    override suspend fun finalizadosEntre(desde: Long, hasta: Long): List<ResumenViajeDto> = emptyList()
     override suspend fun validar(viajeId: String, aprobado: Boolean, comentario: String?): Result<Unit> {
         validaciones += Triple(viajeId, aprobado, comentario)
         return Result.success(Unit)

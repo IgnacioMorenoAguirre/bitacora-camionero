@@ -142,6 +142,8 @@ interface AdminRepositorio {
     /** Ids de los viajes de la lista en que el chofer superó el límite de manejo continuo. */
     suspend fun excesosDeHoras(viajes: List<ResumenViajeDto>): Set<String>
     suspend fun choferes(): List<PerfilDto>
+    /** Viajes finalizados con salida en [desde, hasta) (epoch ms), sin el tope de la lista: para los reportes. */
+    suspend fun finalizadosEntre(desde: Long, hasta: Long): List<ResumenViajeDto>
     suspend fun detalle(viajeId: String): DetalleViajeRemoto
     suspend fun validar(viajeId: String, aprobado: Boolean, comentario: String?): Result<Unit>
     suspend fun urlAdjunto(ruta: String): String
@@ -155,6 +157,7 @@ object AdminRepositorioSinServidor : AdminRepositorio {
     override fun viajesEnVivo(filtro: FiltroViajes): Flow<List<ResumenViajeDto>> = flow { throw ErrorAdmin.SinServidor }
     override suspend fun excesosDeHoras(viajes: List<ResumenViajeDto>): Set<String> = emptySet()
     override suspend fun choferes(): List<PerfilDto> = emptyList()
+    override suspend fun finalizadosEntre(desde: Long, hasta: Long): List<ResumenViajeDto> = throw ErrorAdmin.SinServidor
     override suspend fun detalle(viajeId: String): DetalleViajeRemoto = throw ErrorAdmin.SinServidor
     override suspend fun validar(viajeId: String, aprobado: Boolean, comentario: String?) = Result.failure<Unit>(ErrorAdmin.SinServidor)
     override suspend fun urlAdjunto(ruta: String): String = throw ErrorAdmin.SinServidor
@@ -235,6 +238,14 @@ class AdminRepositorioSupabase(
             filter { eq("rol", "chofer") }
             order("nombre_completo", Order.ASCENDING)
         }.data.let { json.decodeFromString<List<PerfilDto>>(it) }
+    }
+
+    override suspend fun finalizadosEntre(desde: Long, hasta: Long): List<ResumenViajeDto> = traducir {
+        paginar("resumen_viajes") {
+            eq("estado", EstadoViaje.FINALIZADO.valor)
+            gte("fecha_salida", desde.aIso())
+            lt("fecha_salida", hasta.aIso())
+        }
     }
 
     override suspend fun detalle(viajeId: String): DetalleViajeRemoto = traducir {

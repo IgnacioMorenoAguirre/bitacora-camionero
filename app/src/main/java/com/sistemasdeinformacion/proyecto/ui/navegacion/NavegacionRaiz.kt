@@ -28,7 +28,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -44,6 +43,7 @@ import com.sistemasdeinformacion.proyecto.data.prefs.Perfil
 import com.sistemasdeinformacion.proyecto.data.repo.EstadoSesion
 import com.sistemasdeinformacion.proyecto.feature.admin.AdminCamionesScreen
 import com.sistemasdeinformacion.proyecto.feature.admin.AdminDetalleScreen
+import com.sistemasdeinformacion.proyecto.feature.admin.AdminReportesScreen
 import com.sistemasdeinformacion.proyecto.feature.admin.AdminViajesScreen
 import com.sistemasdeinformacion.proyecto.feature.auth.EnlaceRecuperacion
 import com.sistemasdeinformacion.proyecto.feature.auth.LoginScreen
@@ -57,7 +57,6 @@ import com.sistemasdeinformacion.proyecto.feature.ruta.HojaDeRutaScreen
 import com.sistemasdeinformacion.proyecto.feature.viajes.MisViajesScreen
 import com.sistemasdeinformacion.proyecto.feature.viajes.NuevoViajeScreen
 import com.sistemasdeinformacion.proyecto.feature.viajes.ResumenScreen
-import com.sistemasdeinformacion.proyecto.ui.componentes.EstadoVacio
 import com.sistemasdeinformacion.proyecto.ui.theme.Bitacora
 
 private data class Pestana(val destino: NavKey, val texto: String, val icono: ImageVector)
@@ -141,8 +140,7 @@ private fun PilaConSesion(perfil: Perfil) {
             if (esAdmin) {
                 entry<AdminViajes> { AdminViajesScreen(nav) }
                 entry<AdminDetalle> { AdminDetalleScreen(it.viajeId, nav) }
-                // Los reportes llegan con la Task 14.
-                entry<AdminReportes> { PanelEnConstruccion() }
+                entry<AdminReportes> { AdminReportesScreen() }
                 entry<AdminCamiones> { AdminCamionesScreen() }
             } else {
                 entry<Inicio> { InicioScreen(nav, perfil.nombre) }
@@ -208,11 +206,4 @@ private fun Pantallas(pila: List<NavKey>, nav: Navegador, entradas: (NavKey) -> 
         },
         entryProvider = entradas,
     )
-}
-
-@Composable
-private fun PanelEnConstruccion() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        EstadoVacio("Reportes", "Los reportes del administrador están en construcción.")
-    }
 }

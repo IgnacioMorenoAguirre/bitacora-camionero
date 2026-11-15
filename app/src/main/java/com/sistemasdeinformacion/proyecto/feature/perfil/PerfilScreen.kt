@@ -46,6 +46,7 @@ fun PerfilScreen(p: Perfil) {
     val c = Bitacora.colores
     var confirmar by rememberSaveable { mutableStateOf(false) }
     var cerrando by remember { mutableStateOf(false) }
+    var pedido by remember { mutableStateOf(false) }
 
     val cerrarSesion = {
         cerrando = true
@@ -73,6 +74,18 @@ fun PerfilScreen(p: Perfil) {
                 "Todo lo que registras se guarda primero en este teléfono y se envía solo cuando hay conexión.",
                 style = MaterialTheme.typography.bodyMedium, color = c.textoSuave,
             )
+            Spacer(Modifier.height(12.dp))
+            BotonSecundario(
+                texto = "Sincronizar ahora",
+                onClick = { container.programadorSync.alGuardar(); pedido = true },
+                habilitado = !sync.enviando,
+            )
+            if (pedido && !sync.conectado && sync.pendientes > 0) {
+                Text(
+                    "Sin señal. Se enviará cuando vuelva la conexión.",
+                    style = MaterialTheme.typography.bodyMedium, color = c.acento, modifier = Modifier.padding(top = 6.dp),
+                )
+            }
         }
         Spacer(Modifier.height(12.dp))
         Bloque {
