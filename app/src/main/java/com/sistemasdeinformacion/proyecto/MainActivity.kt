@@ -2,6 +2,7 @@ package com.sistemasdeinformacion.proyecto
 
 import android.content.Intent
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -35,6 +36,9 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         val container = container
+        // Antes de la primera composición, para que no haya un salto de barras al abrir.
+        enableEdgeToEdge()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) window.isNavigationBarContrastEnforced = false
         setContent {
             val claro by container.preferencias.temaClaro.collectAsStateWithLifecycle(false)
             LaunchedEffect(claro) {
@@ -42,6 +46,8 @@ class MainActivity : ComponentActivity() {
                 val estilo = if (claro) SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
                 else SystemBarStyle.dark(Color.TRANSPARENT)
                 enableEdgeToEdge(statusBarStyle = estilo, navigationBarStyle = estilo)
+                // La barra inferior de la app llega hasta el borde: sin el velo translúcido del sistema.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) window.isNavigationBarContrastEnforced = false
             }
             CompositionLocalProvider(LocalContainer provides container) {
                 TemaBitacora(claro = claro) {

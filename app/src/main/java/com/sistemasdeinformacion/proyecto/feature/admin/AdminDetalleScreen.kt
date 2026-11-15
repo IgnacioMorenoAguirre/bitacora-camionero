@@ -100,8 +100,8 @@ private fun Contenido(d: DetalleViajeRemoto, e: EstadoAdminDetalle, vm: AdminDet
     Column(
         Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .imePadding()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 18.dp)
             .padding(bottom = 20.dp)
     ) {

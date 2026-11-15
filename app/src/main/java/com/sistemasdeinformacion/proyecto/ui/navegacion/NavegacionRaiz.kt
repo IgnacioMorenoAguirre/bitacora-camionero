@@ -9,6 +9,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Badge
@@ -184,7 +185,8 @@ private fun Marco(actual: NavKey?, pestanas: List<Pestana>, onPestana: (NavKey) 
             }
         },
     ) { relleno ->
-        Box(Modifier.padding(relleno)) { contenido() }
+        // Las pantallas con teclado usan imePadding: sin consumir, el relleno de las barras se sumaría dos veces.
+        Box(Modifier.padding(relleno).consumeWindowInsets(relleno)) { contenido() }
     }
 }
 
