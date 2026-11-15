@@ -16,6 +16,8 @@ import kotlinx.coroutines.launch
 interface ProgramadorSync {
     /** Se llama después de cada guardado local. */
     fun alGuardar()
+    /** Botón "Sincronizar ahora": envía al tiro aunque haya un reintento esperando. */
+    fun sincronizarAhora() = alGuardar()
     val estado: Flow<EstadoSync>
 }
 
@@ -48,7 +50,7 @@ class ProgramadorSyncWorkManager(
         workManager.enqueueUniqueWork(SyncWorker.TRABAJO_INMEDIATO, ExistingWorkPolicy.KEEP, SyncWorker.solicitudInmediata())
     }
 
-    private fun sincronizarAhora() {
+    override fun sincronizarAhora() {
         workManager.enqueueUniqueWork(SyncWorker.TRABAJO_INMEDIATO, ExistingWorkPolicy.REPLACE, SyncWorker.solicitudInmediata())
     }
 

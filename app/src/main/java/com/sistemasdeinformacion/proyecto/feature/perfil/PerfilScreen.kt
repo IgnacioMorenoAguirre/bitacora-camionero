@@ -77,7 +77,7 @@ fun PerfilScreen(p: Perfil) {
             Spacer(Modifier.height(12.dp))
             BotonSecundario(
                 texto = "Sincronizar ahora",
-                onClick = { container.programadorSync.alGuardar(); pedido = true },
+                onClick = { container.programadorSync.sincronizarAhora(); pedido = true },
                 habilitado = !sync.enviando,
             )
             if (pedido && !sync.conectado && sync.pendientes > 0) {
