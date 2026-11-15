@@ -17,5 +17,6 @@ internal fun mensajeAuth(e: Throwable, sinRed: String): String = when (e) {
     ErrorAuth.CuentaInactiva -> "Tu cuenta está desactivada. Habla con el administrador."
     ErrorAuth.EnlaceVencido -> "El enlace venció o ya se usó. Pide uno nuevo."
     ErrorAuth.SinServidor -> "Falta configurar el servidor de la app."
+    is ErrorAuth.DatosSinEnviar -> "En este teléfono hay registros de ${e.nombre} sin enviar. Que esa persona entre primero para enviarlos."
     else -> "No se pudo completar. Intenta de nuevo."
 }

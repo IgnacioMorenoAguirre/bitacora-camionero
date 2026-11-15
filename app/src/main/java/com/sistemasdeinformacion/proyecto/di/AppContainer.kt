@@ -3,6 +3,7 @@ package com.sistemasdeinformacion.proyecto.di
 import android.content.Context
 import android.util.Log
 import com.sistemasdeinformacion.proyecto.core.RelojSistema
+import com.sistemasdeinformacion.proyecto.core.resumenSeguro
 import com.sistemasdeinformacion.proyecto.data.local.AppDatabase
 import com.sistemasdeinformacion.proyecto.data.local.ArchivosAdjuntos
 import com.sistemasdeinformacion.proyecto.data.local.borrarTodo
@@ -85,7 +86,9 @@ class AppContainer(val context: Context) {
             },
             // Borrar los datos locales espera a que termine una sync en curso.
             exclusion = { bloque -> sincronizador?.sinSincronizar(bloque) ?: bloque() },
-            registrarError = { mensaje, e -> Log.w(ETIQUETA, mensaje, e) },
+            registrarError = { mensaje, e -> Log.w(ETIQUETA, "$mensaje: ${e.resumenSeguro()}") },
+            // Si entra otra persona, no se borran registros que la anterior no alcanzó a enviar.
+            pendientes = { db.syncDao().contarPendientes().first() },
         )
     }
 
@@ -133,7 +136,7 @@ class AppContainer(val context: Context) {
             throw e
         } catch (e: Exception) {
             // Sin señal es normal; un error de permisos (RLS) en camiones también cae aquí y debe verse.
-            Log.w(ETIQUETA, "No se pudieron bajar los camiones", e)
+            Log.w(ETIQUETA, "No se pudieron bajar los camiones: ${e.resumenSeguro()}")
         }
     }
 

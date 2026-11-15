@@ -27,6 +27,8 @@ sealed class ErrorAuth : Exception() {
     data object CuentaInactiva : ErrorAuth()
     data object EnlaceVencido : ErrorAuth()
     data object SinServidor : ErrorAuth()
+    /** Quedaron registros sin enviar de [nombre] (la persona anterior): no se borran sin que ella entre. */
+    data class DatosSinEnviar(val nombre: String) : ErrorAuth()
     class Desconocido(override val cause: Throwable?) : ErrorAuth()
 }
 
@@ -107,6 +109,8 @@ class AuthRepositorioSupabase(
     private val alEntrar: suspend () -> Unit = {},
     private val exclusion: ExclusionSync = ExclusionSync { it() },
     private val registrarError: (String, Throwable) -> Unit = { _, _ -> },
+    /** Registros locales que aún no llegan al servidor (SyncDao.contarPendientes). */
+    private val pendientes: suspend () -> Int = { 0 },
 ) : AuthRepositorio {
 
     override val estado: Flow<EstadoSesion> =
@@ -155,6 +159,14 @@ class AuthRepositorioSupabase(
             // Sesión a medias (sin perfil): se descarta para no dejar un token huérfano.
             descartarSesion("No se pudo descartar la sesión sin perfil")
             throw e
+        }
+        // Entra otra persona y la anterior dejó registros sin enviar (p. ej. el servidor le cerró la
+        // sesión): borrarlos los perdería para siempre. Cerrar sesión desde Perfil pide confirmarlo;
+        // aquí no hay a quién preguntarle, así que primero debe entrar esa persona y enviarlos.
+        val anterior = prefs.perfil.first()
+        if (anterior != null && anterior.id != perfil.id && pendientes() > 0) {
+            descartarSesion("No se pudo descartar la sesión de la persona nueva")
+            throw ErrorAuth.DatosSinEnviar(anterior.nombre)
         }
         // Guardar el perfil activa la sesión y la navegación cancela la pantalla que llamó (su
         // viewModelScope). Lo local y alEntrar() son cortos y no usan red: se completan igual.

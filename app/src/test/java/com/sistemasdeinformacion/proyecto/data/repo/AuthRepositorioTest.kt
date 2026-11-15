@@ -30,6 +30,7 @@ class AuthRepositorioTest {
     private val borradosEnExclusion = mutableListOf<Boolean>()
     private val perfilesServidor = mutableMapOf("u1" to juan)
     private var fallaPerfil: Exception? = null
+    private var pendientes = 0
     private val repo = AuthRepositorioSupabase(
         auth = auth,
         fuentePerfil = { u -> fallaPerfil?.let { throw it }; perfilesServidor[u.id] ?: throw ErrorAuth.Desconocido(null) },
@@ -38,6 +39,7 @@ class AuthRepositorioTest {
         alEntrar = { entradas++; fallaAlEntrar?.let { throw it } },
         exclusion = { bloque -> enExclusion = true; try { bloque() } finally { enExclusion = false } },
         registrarError = { msj, _ -> errores += msj },
+        pendientes = { pendientes },
     )
 
     init { prefs.dentroDeExclusion = { enExclusion } }
@@ -106,6 +108,20 @@ class AuthRepositorioTest {
 
         assertEquals(1, borrados)
         assertEquals(juan, prefs.perfil.value)
+    }
+
+    @Test fun iniciarSesion_otroUsuario_conRegistrosSinEnviarDelAnterior_noBorraYAvisa() = runTest {
+        // Al chofer anterior se le cerró la sesión sin que alcanzara a enviar lo del día.
+        prefs.perfil.value = Perfil("u2", "Pedro Soto", "pedro@correo.cl", Rol.CHOFER)
+        pendientes = 3
+
+        val r = repo.iniciarSesion("juan@correo.cl", "clave1234")
+
+        assertEquals(ErrorAuth.DatosSinEnviar("Pedro Soto"), r.exceptionOrNull())
+        assertEquals(0, borrados)
+        assertEquals("u2", prefs.perfil.value?.id)
+        assertEquals("la sesión de la persona nueva no queda a medias", 1, auth.cierres)
+        assertEquals(0, entradas)
     }
 
     @Test fun iniciarSesion_mismoUsuario_conservaLosDatos() = runTest {
