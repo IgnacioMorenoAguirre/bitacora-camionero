@@ -15,6 +15,9 @@ import com.sistemasdeinformacion.proyecto.data.remote.SesionCifrada
 import com.sistemasdeinformacion.proyecto.data.remote.bajarCamiones
 import com.sistemasdeinformacion.proyecto.data.remote.crearSupabase
 import com.sistemasdeinformacion.proyecto.data.remote.supabaseConfigurado
+import com.sistemasdeinformacion.proyecto.data.repo.AdminRepositorio
+import com.sistemasdeinformacion.proyecto.data.repo.AdminRepositorioSinServidor
+import com.sistemasdeinformacion.proyecto.data.repo.AdminRepositorioSupabase
 import com.sistemasdeinformacion.proyecto.data.repo.AuthRepositorio
 import com.sistemasdeinformacion.proyecto.data.repo.AuthRepositorioSupabase
 import com.sistemasdeinformacion.proyecto.data.repo.ErrorAuth
@@ -106,6 +109,11 @@ class AppContainer(val context: Context) {
     /** Las pantallas del chofer solo existen con sesión iniciada, así que el perfil ya está guardado. */
     val viajes: ViajesRepositorio by lazy {
         ViajesRepositorioRoom(db, { preferencias.perfil.filterNotNull().first().id }, RelojSistema, ubicaciones, programadorSync)
+    }
+
+    /** Pantallas del administrador: leen y escriben directo en Supabase (sin copia local). */
+    val admin: AdminRepositorio by lazy {
+        if (supabaseConfigurado) AdminRepositorioSupabase(supabase, alcance) else AdminRepositorioSinServidor
     }
 
     /** Copia local de los camiones activos; sin señal se queda con la última que bajó. */

@@ -21,7 +21,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class Resumen(val viajeId: String) : NavKey
 @Serializable data object MiPerfil : NavKey
 
-// Administrador (las pantallas llegan con la Task 13)
+// Administrador
 @Serializable data object AdminViajes : NavKey
 @Serializable data class AdminDetalle(val viajeId: String) : NavKey
 @Serializable data object AdminReportes : NavKey

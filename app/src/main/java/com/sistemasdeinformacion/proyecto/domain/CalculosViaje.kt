@@ -63,6 +63,23 @@ object CalculosViaje {
         return (ahora - desde).coerceAtLeast(0L)
     }
 
+    /**
+     * true si en algún momento entre [inicioViaje] y [finViaje] el manejo continuo llegó al límite.
+     * El máximo se da justo antes de empezar un descanso o al terminar el viaje, así que se evalúa
+     * [manejoContinuoMs] en cada evento y en el fin, mirando solo lo que ya había pasado en ese instante
+     * (un descanso que todavía no termina cuenta como en curso).
+     */
+    fun excedioManejoContinuo(inicioViaje: Long, finViaje: Long, eventos: List<EventoEntity>): Boolean {
+        val vigentes = eventos.filter { !it.eliminado }
+        val instantes = (vigentes.map { it.fechaHora } + finViaje).filter { it in inicioViaje..finViaje }.distinct()
+        return instantes.any { t ->
+            val hastaEntonces = vigentes
+                .filter { it.fechaHora < t }
+                .map { e -> if (e.fechaFin != null && e.fechaFin > t) e.copy(fechaFin = null) else e }
+            alerta(manejoContinuoMs(inicioViaje, hastaEntonces, t)) == AlertaHoras.EXCEDIDA
+        }
+    }
+
     fun alerta(manejoContinuoMs: Long): AlertaHoras = when {
         manejoContinuoMs >= LIMITE_MANEJO_MS -> AlertaHoras.EXCEDIDA
         manejoContinuoMs >= LIMITE_MANEJO_MS - AVISO_PREVIO_MS -> AlertaHoras.PROXIMA

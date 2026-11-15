@@ -42,6 +42,9 @@ import androidx.navigation3.ui.NavDisplay
 import com.sistemasdeinformacion.proyecto.data.model.Rol
 import com.sistemasdeinformacion.proyecto.data.prefs.Perfil
 import com.sistemasdeinformacion.proyecto.data.repo.EstadoSesion
+import com.sistemasdeinformacion.proyecto.feature.admin.AdminCamionesScreen
+import com.sistemasdeinformacion.proyecto.feature.admin.AdminDetalleScreen
+import com.sistemasdeinformacion.proyecto.feature.admin.AdminViajesScreen
 import com.sistemasdeinformacion.proyecto.feature.auth.EnlaceRecuperacion
 import com.sistemasdeinformacion.proyecto.feature.auth.LoginScreen
 import com.sistemasdeinformacion.proyecto.feature.auth.NuevaContrasenaScreen
@@ -136,11 +139,11 @@ private fun PilaConSesion(perfil: Perfil) {
         Pantallas(pila, nav, entryProvider {
             entry<MiPerfil> { PerfilScreen(perfil) }
             if (esAdmin) {
-                // Las pantallas del administrador llegan con la Task 13.
-                entry<AdminViajes> { PanelEnConstruccion() }
-                entry<AdminDetalle> { PanelEnConstruccion() }
+                entry<AdminViajes> { AdminViajesScreen(nav) }
+                entry<AdminDetalle> { AdminDetalleScreen(it.viajeId, nav) }
+                // Los reportes llegan con la Task 14.
                 entry<AdminReportes> { PanelEnConstruccion() }
-                entry<AdminCamiones> { PanelEnConstruccion() }
+                entry<AdminCamiones> { AdminCamionesScreen() }
             } else {
                 entry<Inicio> { InicioScreen(nav, perfil.nombre) }
                 entry<MisViajes> { MisViajesScreen(nav) }
@@ -210,6 +213,6 @@ private fun Pantallas(pila: List<NavKey>, nav: Navegador, entradas: (NavKey) -> 
 @Composable
 private fun PanelEnConstruccion() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        EstadoVacio("Panel de administración", "Las pantallas del administrador están en construcción.")
+        EstadoVacio("Reportes", "Los reportes del administrador están en construcción.")
     }
 }
