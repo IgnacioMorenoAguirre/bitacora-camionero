@@ -59,12 +59,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import java.time.LocalDate
+import java.time.Instant
 import java.time.ZoneId
 
 data class EstadoInicio(
@@ -93,11 +94,25 @@ class InicioViewModel(
 
     private val tic = flow { while (true) { emit(reloj.ahora()); delay(30_000) } }
 
-    private val inicioMes = LocalDate.now(zona).withDayOfMonth(1).atStartOfDay(zona).toInstant().toEpochMilli()
+    /** Inicio del mes en curso; cambia solo si la app sigue abierta al pasar al día 1. */
+    private val inicioMes = tic.map { ahora ->
+        Instant.ofEpochMilli(ahora).atZone(zona).toLocalDate().withDayOfMonth(1).atStartOfDay(zona).toInstant().toEpochMilli()
+    }.distinctUntilChanged()
 
-    private val delMes = combine(repo.viajes(), repo.gastosDelPeriodo(inicioMes, Long.MAX_VALUE)) { viajes, gastos ->
-        val mes = viajes.filter { it.fechaSalida >= inicioMes }
-        Triple(mes.sumOf { v -> if (v.kmInicial != null && v.kmFinal != null) v.kmFinal - v.kmInicial else 0 }, gastos.sumOf { it.monto }, mes.size)
+    /**
+     * Un viaje cuenta en el mes en que salió, con todo lo suyo: sus gastos también, aunque se
+     * pagaran pasada la medianoche del día 1 (así km, combustible y viajes hablan del mismo mes).
+     */
+    private val delMes = inicioMes.flatMapLatest { desde ->
+        combine(repo.viajes(), repo.gastosDelPeriodo(desde, Long.MAX_VALUE)) { viajes, gastos ->
+            val mes = viajes.filter { it.fechaSalida >= desde }
+            val ids = mes.mapTo(HashSet()) { it.id }
+            Triple(
+                mes.sumOf { v -> if (v.kmInicial != null && v.kmFinal != null) v.kmFinal - v.kmInicial else 0 },
+                gastos.filter { it.viajeId in ids }.sumOf { it.monto },
+                mes.size,
+            )
+        }
     }
 
     private val eventosEnCurso = repo.enCurso().flatMapLatest { v -> if (v == null) flowOf(v to emptyList()) else repo.detalle(v.id).map { v to it.eventos } }
