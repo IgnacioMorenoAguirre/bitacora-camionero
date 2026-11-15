@@ -77,12 +77,23 @@ class DestinoSupabase(private val supabase: SupabaseClient) : DestinoRemoto {
         // Un archivo que falta no es falta de señal (FileNotFoundException es una IOException).
         val bytes = withContext(Dispatchers.IO) { if (archivo.isFile) archivo.readBytes() else null }
             ?: throw ArchivoNoDisponibleException(a.rutaLocal)
-        supabase.storage.from(BUCKET_ADJUNTOS).upload(ruta, bytes) {
-            upsert = true // reintentar sube el mismo archivo a la misma ruta
-            contentType = if (a.tipo == TipoAdjunto.FIRMA) ContentType.Image.PNG else ContentType.Image.JPEG
+        try {
+            // Sin upsert: en un viaje ya aprobado el servidor acepta archivos nuevos pero no reemplazos.
+            supabase.storage.from(BUCKET_ADJUNTOS).upload(ruta, bytes) {
+                upsert = false
+                contentType = if (a.tipo == TipoAdjunto.FIRMA) ContentType.Image.PNG else ContentType.Image.JPEG
+            }
+        } catch (e: RestException) {
+            // Ya estaba: un intento anterior lo subió y se cortó antes de la respuesta. La ruta lleva el
+            // id del adjunto, cuyo archivo no cambia, así que es el mismo y cuenta como subido.
+            if (!yaExiste(e)) throw e
         }
         return ruta
     }
+
+    private fun yaExiste(e: RestException): Boolean =
+        e.statusCode == 409 || e.error.contains("Duplicate", ignoreCase = true) ||
+            e.message?.lineSequence()?.firstOrNull()?.contains("already exists", ignoreCase = true) == true
 
     override suspend fun bajarDesde(marca: String?, choferId: String): CambiosRemotos {
         // Se vuelve a pedir un margen antes de la marca: now() de PostgreSQL es la hora de inicio de la
