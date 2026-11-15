@@ -57,8 +57,12 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         fun crear(context: Context): AppDatabase =
+            // Sin borrado al subir de versión: la base guarda viajes que pueden no haberse enviado.
+            // Desde la versión 2 cada cambio de esquema necesita su Migration (o @AutoMigration; el
+            // esquema 1 ya está exportado en app/schemas). Solo al volver a una versión anterior de
+            // la app se borra todo, porque Room no sabe bajar de versión.
             Room.databaseBuilder(context, AppDatabase::class.java, "bitacora.db")
-                .fallbackToDestructiveMigration(dropAllTables = true)
+                .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
                 .build()
     }
 }
