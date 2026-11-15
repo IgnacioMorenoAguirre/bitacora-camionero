@@ -50,6 +50,7 @@ import com.sistemasdeinformacion.proyecto.ui.componentes.BotonSecundario
 import com.sistemasdeinformacion.proyecto.ui.componentes.CaminoRuta
 import com.sistemasdeinformacion.proyecto.ui.componentes.EscudoRuta
 import com.sistemasdeinformacion.proyecto.ui.componentes.Hito
+import com.sistemasdeinformacion.proyecto.ui.navegacion.CorregirViaje
 import com.sistemasdeinformacion.proyecto.ui.navegacion.Entrega
 import com.sistemasdeinformacion.proyecto.ui.navegacion.LocalContainer
 import com.sistemasdeinformacion.proyecto.ui.navegacion.Navegador
@@ -73,6 +74,8 @@ data class EstadoHojaDeRuta(
 ) {
     val enCurso: Boolean get() = detalle?.viaje?.estado == EstadoViaje.EN_CURSO
     val soloLectura: Boolean get() = detalle?.viaje?.validacion == EstadoValidacion.APROBADO
+    val puedeCorregir: Boolean
+        get() = detalle?.viaje?.let { it.estado == EstadoViaje.FINALIZADO && it.validacion == EstadoValidacion.OBSERVADO } == true
 }
 
 class HojaDeRutaViewModel(viajeId: String, repo: ViajesRepositorio) : ViewModel() {
@@ -158,6 +161,12 @@ fun HojaDeRutaScreen(viajeId: String, nav: Navegador) {
                                 BotonSecundario("Finalizar", { nav.ir(Entrega(viajeId)) }, Modifier.weight(1f))
                             }
                         }
+                    }
+                } else if (e.puedeCorregir) {
+                    Column {
+                        BotonPrincipal("Corregir viaje", { nav.ir(CorregirViaje(viajeId)) })
+                        Spacer(Modifier.height(10.dp))
+                        BotonSecundario("Ver resumen del viaje", { nav.ir(Resumen(viajeId)) })
                     }
                 } else {
                     BotonPrincipal("Ver resumen del viaje", { nav.ir(Resumen(viajeId)) })
