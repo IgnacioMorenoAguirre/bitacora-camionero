@@ -54,6 +54,7 @@ import com.sistemasdeinformacion.proyecto.feature.entrega.EntregaScreen
 import com.sistemasdeinformacion.proyecto.feature.inicio.InicioScreen
 import com.sistemasdeinformacion.proyecto.feature.perfil.PerfilScreen
 import com.sistemasdeinformacion.proyecto.feature.ruta.HojaDeRutaScreen
+import com.sistemasdeinformacion.proyecto.feature.viajes.CorregirViajeScreen
 import com.sistemasdeinformacion.proyecto.feature.viajes.MisViajesScreen
 import com.sistemasdeinformacion.proyecto.feature.viajes.NuevoViajeScreen
 import com.sistemasdeinformacion.proyecto.feature.viajes.ResumenScreen
@@ -149,6 +150,7 @@ private fun PilaConSesion(perfil: Perfil) {
                 entry<HojaDeRuta> { HojaDeRutaScreen(it.viajeId, nav) }
                 entry<Entrega> { EntregaScreen(it.viajeId, nav) }
                 entry<Resumen> { ResumenScreen(it.viajeId, nav) }
+                entry<CorregirViaje> { CorregirViajeScreen(it.viajeId, nav) }
             }
         })
     }

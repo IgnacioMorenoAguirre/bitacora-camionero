@@ -19,6 +19,8 @@ import kotlinx.serialization.Serializable
 @Serializable data class HojaDeRuta(val viajeId: String) : NavKey
 @Serializable data class Entrega(val viajeId: String) : NavKey
 @Serializable data class Resumen(val viajeId: String) : NavKey
+/** Corrección de los datos de un viaje observado por el administrador. */
+@Serializable data class CorregirViaje(val viajeId: String) : NavKey
 @Serializable data object MiPerfil : NavKey
 
 // Administrador

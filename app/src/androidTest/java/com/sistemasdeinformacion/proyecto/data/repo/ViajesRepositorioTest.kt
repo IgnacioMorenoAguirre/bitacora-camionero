@@ -4,20 +4,26 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.sistemasdeinformacion.proyecto.data.local.AppDatabase
+import com.sistemasdeinformacion.proyecto.data.local.ArchivosAdjuntos
+import com.sistemasdeinformacion.proyecto.data.model.EstadoValidacion
 import com.sistemasdeinformacion.proyecto.data.model.EstadoViaje
+import com.sistemasdeinformacion.proyecto.data.model.TipoAdjunto
 import com.sistemasdeinformacion.proyecto.data.model.TipoEvento
 import com.sistemasdeinformacion.proyecto.data.model.TipoGasto
 import com.sistemasdeinformacion.proyecto.sync.ProgramadorSyncVacio
+import com.sistemasdeinformacion.proyecto.sync.rutaRemotaDe
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class ViajesRepositorioTest {
@@ -25,6 +31,7 @@ class ViajesRepositorioTest {
     private var ahora = 1_000_000L
     private var ubicacion: Ubicacion? = Ubicacion(-33.45, -70.66, "Santiago")
     private lateinit var repo: ViajesRepositorioRoom
+    private lateinit var archivos: ArchivosAdjuntos
 
     private val datos = DatosNuevoViaje(
         camionId = null, cliente = "Agrícola Sur", origen = "Santiago", destino = "Concepción", ruta = "5 SUR",
@@ -33,6 +40,8 @@ class ViajesRepositorioTest {
     private val revision = DatosRevision(true, true, true, true, false, "Falta revisión técnica al día")
 
     @Before fun abrir() {
+        val contexto = InstrumentationRegistry.getInstrumentation().targetContext
+        archivos = ArchivosAdjuntos(File(contexto.cacheDir, "prueba-${System.nanoTime()}"))
         db = Room.inMemoryDatabaseBuilder(InstrumentationRegistry.getInstrumentation().targetContext, AppDatabase::class.java).build()
         repo = ViajesRepositorioRoom(
             db = db,
@@ -43,7 +52,10 @@ class ViajesRepositorioTest {
         )
     }
 
-    @After fun cerrar() = db.close()
+    @After fun cerrar() {
+        db.close()
+        archivos.borrarTodo()
+    }
 
     @Test fun crearViaje_creaRevisionYEventoInicio() = runTest {
         val id = repo.crearViaje(datos, revision).getOrThrow()
@@ -86,11 +98,77 @@ class ViajesRepositorioTest {
 
     @Test fun finalizar_kmMenor_falla() = runTest {
         val id = repo.crearViaje(datos, revision).getOrThrow()
-        assertTrue(repo.finalizar(id, 900, null).isFailure)
-        repo.finalizar(id, 1500, "Pedro Soto").getOrThrow()
+        assertTrue(repo.finalizar(id, 900, null, null).isFailure)
+        repo.finalizar(id, 1500, "Pedro Soto", null).getOrThrow()
         val d = repo.detalle(id).first()
         assertEquals(EstadoViaje.FINALIZADO, d.viaje!!.estado)
         assertEquals(listOf(TipoEvento.INICIO, TipoEvento.ENTREGA, TipoEvento.FIN), d.eventos.map { it.tipo })
+    }
+
+    @Test fun finalizar_creaEventosEntregaYFin() = runTest {
+        val id = repo.crearViaje(datos, revision).getOrThrow()
+        ahora += 8 * 3_600_000L
+        val foto = archivos.temporal(id, TipoAdjunto.FOTO).apply { writeBytes(byteArrayOf(1, 2, 3)) }
+
+        repo.finalizar(id, 1600, "Pedro Soto", NuevoAdjunto(TipoAdjunto.FOTO, foto, "Pedro Soto")).getOrThrow()
+
+        val d = repo.detalle(id).first()
+        val entrega = d.eventos.single { it.tipo == TipoEvento.ENTREGA }
+        val fin = d.eventos.single { it.tipo == TipoEvento.FIN }
+        assertEquals("Recibió: Pedro Soto", entrega.nota)
+        assertEquals(-33.45, entrega.latitud!!, 0.0001)
+        assertEquals(1600, fin.km)
+        assertTrue(fin.fechaHora > entrega.fechaHora)
+        assertEquals(EstadoViaje.FINALIZADO, d.viaje!!.estado)
+        assertEquals(ahora, d.viaje.fechaLlegada)
+        assertEquals(1600, d.viaje.kmFinal)
+
+        // La foto queda como filesDir/adjuntos/{viajeId}/{id}.jpg, igual que su ruta en el bucket.
+        val a = d.adjuntos.single()
+        val archivo = File(a.rutaLocal)
+        assertEquals(File(archivos.carpetaDe(id), "${a.id}.jpg"), archivo)
+        assertEquals(rutaRemotaDe(a).substringAfter('/'), archivo.name)
+        assertTrue(archivo.isFile)
+        assertFalse(foto.exists())
+        assertEquals("Pedro Soto", a.nombreReceptor)
+        assertTrue(a.syncPendiente)
+        assertNull(a.rutaRemota)
+    }
+
+    @Test fun finalizar_conAdjuntoSinArchivo_falla() = runTest {
+        val id = repo.crearViaje(datos, revision).getOrThrow()
+        val vacio = archivos.temporal(id, TipoAdjunto.FIRMA)
+
+        val r = repo.finalizar(id, 1600, null, NuevoAdjunto(TipoAdjunto.FIRMA, vacio, null))
+
+        assertTrue(r.exceptionOrNull() is AdjuntoNoDisponibleException)
+        assertEquals(EstadoViaje.EN_CURSO, repo.detalle(id).first().viaje!!.estado)
+    }
+
+    @Test fun editarViaje_observado_vuelveAPendiente() = runTest {
+        val id = repo.crearViaje(datos, revision).getOrThrow()
+        repo.finalizar(id, 1500, null, null).getOrThrow()
+        val v = db.viajeDao().obtener(id)!!
+        db.viajeDao().guardar(v.copy(validacion = EstadoValidacion.OBSERVADO, comentarioValidacion = "Revisa el precio.", syncPendiente = false))
+
+        repo.editarViaje(id, DatosEdicionViaje("Agrícola Sur", "Santiago", "Concepción", "Fruta", 18_500.0, 950_000, null)).getOrThrow()
+
+        val corregido = repo.detalle(id).first().viaje!!
+        assertEquals(950_000L, corregido.precio)
+        assertEquals(EstadoValidacion.PENDIENTE, corregido.validacion)
+        assertTrue(corregido.syncPendiente)
+    }
+
+    @Test fun editarViaje_aprobado_esSoloLectura() = runTest {
+        val id = repo.crearViaje(datos, revision).getOrThrow()
+        repo.finalizar(id, 1500, null, null).getOrThrow()
+        val v = db.viajeDao().obtener(id)!!
+        db.viajeDao().guardar(v.copy(validacion = EstadoValidacion.APROBADO))
+
+        val r = repo.editarViaje(id, DatosEdicionViaje("Otro", "Santiago", "Concepción", "Fruta", 18_500.0, 1, null))
+
+        assertTrue(r.exceptionOrNull() is ViajeSoloLecturaException)
+        assertEquals("Agrícola Sur", repo.detalle(id).first().viaje!!.cliente)
     }
 
     @Test fun registrarGasto_combustible() = runTest {

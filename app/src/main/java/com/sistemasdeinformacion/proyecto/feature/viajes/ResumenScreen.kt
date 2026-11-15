@@ -20,19 +20,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.sistemasdeinformacion.proyecto.data.model.TipoAdjunto
 import com.sistemasdeinformacion.proyecto.data.model.EstadoValidacion
 import com.sistemasdeinformacion.proyecto.data.model.TipoGasto
-import com.sistemasdeinformacion.proyecto.domain.CalculosViaje
 import com.sistemasdeinformacion.proyecto.domain.Formatos
 import com.sistemasdeinformacion.proyecto.ui.componentes.Aviso
 import com.sistemasdeinformacion.proyecto.ui.componentes.BotonPrincipal
+import com.sistemasdeinformacion.proyecto.ui.componentes.BotonSecundario
+import com.sistemasdeinformacion.proyecto.ui.navegacion.CorregirViaje
 import com.sistemasdeinformacion.proyecto.ui.componentes.EscudoRuta
 import com.sistemasdeinformacion.proyecto.ui.navegacion.HojaDeRuta
 import com.sistemasdeinformacion.proyecto.ui.navegacion.Inicio
@@ -43,17 +45,18 @@ import com.sistemasdeinformacion.proyecto.ui.theme.Bitacora
 @Composable
 fun ResumenScreen(viajeId: String, nav: Navegador) {
     val container = LocalContainer.current
-    val d by remember(viajeId) { container.viajes.detalle(viajeId) }.collectAsStateWithLifecycle(null)
+    val vm = viewModel { ResumenViewModel(viajeId, container.viajes) }
+    val e by vm.estado.collectAsStateWithLifecycle()
     val c = Bitacora.colores
-    val v = d?.viaje
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(start = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { nav.volver() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Volver") }
             Text("Volver", style = MaterialTheme.typography.bodyLarge, color = c.textoSuave)
         }
-        if (d == null || v == null) return@Column
-        val r = CalculosViaje.resumen(v, d!!.gastos, d!!.camion?.rendimientoKmL)
+        val estadoResumen = e ?: return@Column
+        val v = estadoResumen.viaje
+        val r = estadoResumen.resumen
 
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {
             Text("Resumen del viaje", style = MaterialTheme.typography.headlineLarge)
@@ -62,9 +65,9 @@ fun ResumenScreen(viajeId: String, nav: Navegador) {
                 v.ruta?.let { EscudoRuta(it) }
                 Text("${v.origen} a ${v.destino}", style = MaterialTheme.typography.titleMedium)
             }
-            val (estado, color) = when (v.validacion) {
-                EstadoValidacion.APROBADO -> "Bitácora aprobada" to Color(0xFF4CD97B)
-                EstadoValidacion.OBSERVADO -> "Observada: ${v.comentarioValidacion ?: "revisa los datos"}" to c.peligro
+            val (estado, color) = when (estadoResumen.validacion) {
+                EstadoValidacion.APROBADO -> "Bitácora aprobada. Ya no se puede modificar." to Color(0xFF4CD97B)
+                EstadoValidacion.OBSERVADO -> "Observada: ${estadoResumen.comentario ?: "revisa los datos"}" to c.peligro
                 EstadoValidacion.PENDIENTE -> "Pendiente de revisión del administrador" to c.textoSuave
             }
             Aviso(estado, color, Modifier.padding(top = 12.dp))
@@ -101,10 +104,25 @@ fun ResumenScreen(viajeId: String, nav: Navegador) {
                     style = MaterialTheme.typography.bodyMedium, color = c.textoSuave, modifier = Modifier.padding(top = 4.dp),
                 )
             }
+            if (estadoResumen.adjuntos.isNotEmpty()) {
+                Spacer(Modifier.height(22.dp))
+                Text("Respaldo de la entrega", style = MaterialTheme.typography.headlineSmall)
+                Spacer(Modifier.height(6.dp))
+                estadoResumen.adjuntos.forEach { a ->
+                    val texto = if (a.tipo == TipoAdjunto.FIRMA) "Firma de ${a.nombreReceptor ?: "quien recibió"}" else "Foto de la guía"
+                    Linea(texto, if (a.syncPendiente || a.rutaRemota == null) "Por enviar" else "Enviada")
+                }
+            }
             Spacer(Modifier.height(16.dp))
         }
         Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
-            BotonPrincipal("Ver hoja de ruta", { nav.ir(HojaDeRuta(viajeId)) })
+            if (estadoResumen.puedeCorregir) {
+                BotonPrincipal("Corregir viaje", { nav.ir(CorregirViaje(viajeId)) })
+                Spacer(Modifier.height(10.dp))
+                BotonSecundario("Ver hoja de ruta", { nav.ir(HojaDeRuta(viajeId)) })
+            } else {
+                BotonPrincipal("Ver hoja de ruta", { nav.ir(HojaDeRuta(viajeId)) })
+            }
             androidx.compose.material3.TextButton(onClick = { nav.raiz(Inicio) }, modifier = Modifier.fillMaxWidth()) {
                 Text("Volver al inicio", color = c.acento)
             }

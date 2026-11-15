@@ -37,6 +37,21 @@
             </intent-filter>
         </activity>
 
+        <!--
+          Presta a la app de cámara un archivo de filesDir/adjuntos para la foto de la guía
+          (ActivityResultContracts.TakePicture). No exportado: solo se accede con el permiso
+          temporal que lleva el intent de la cámara. No se declara el permiso CAMERA.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.archivos"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- WorkManager se inicializa desde BitacoraApp (Configuration.Provider) -->
         <provider
             android:name="androidx.startup.InitializationProvider"

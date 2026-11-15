@@ -5,6 +5,7 @@ import com.sistemasdeinformacion.proyecto.core.Ids
 import com.sistemasdeinformacion.proyecto.core.Reloj
 import com.sistemasdeinformacion.proyecto.data.local.AdjuntoEntity
 import com.sistemasdeinformacion.proyecto.data.local.AppDatabase
+import com.sistemasdeinformacion.proyecto.data.local.ArchivosAdjuntos
 import com.sistemasdeinformacion.proyecto.data.local.CamionEntity
 import com.sistemasdeinformacion.proyecto.data.local.EventoEntity
 import com.sistemasdeinformacion.proyecto.data.local.GastoEntity
@@ -14,17 +15,21 @@ import com.sistemasdeinformacion.proyecto.data.local.ViajeEntity
 import com.sistemasdeinformacion.proyecto.data.model.EstadoValidacion
 import com.sistemasdeinformacion.proyecto.data.model.EstadoViaje
 import com.sistemasdeinformacion.proyecto.data.model.Gravedad
+import com.sistemasdeinformacion.proyecto.data.model.TipoAdjunto
 import com.sistemasdeinformacion.proyecto.data.model.TipoEvento
 import com.sistemasdeinformacion.proyecto.data.model.TipoGasto
 import com.sistemasdeinformacion.proyecto.data.model.TipoNovedad
 import com.sistemasdeinformacion.proyecto.domain.Validaciones
 import com.sistemasdeinformacion.proyecto.sync.ProgramadorSync
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.withContext
+import java.io.File
 
 data class DatosNuevoViaje(
     val camionId: String?,
@@ -49,6 +54,23 @@ data class DatosRevision(
     val comentario: String?,
 )
 
+/** Datos del viaje que el chofer puede corregir cuando el administrador lo observa. */
+data class DatosEdicionViaje(
+    val cliente: String,
+    val origen: String,
+    val destino: String,
+    val tipoCarga: String,
+    val pesoKg: Double,
+    val precio: Long,
+    val observaciones: String?,
+)
+
+/**
+ * Foto de la guía o firma de quien recibe. [archivo] es el temporal que dejó la cámara o el panel de firma
+ * (ver ArchivosAdjuntos); al finalizar se renombra como `{id}.jpg|png`.
+ */
+data class NuevoAdjunto(val tipo: TipoAdjunto, val archivo: File, val nombreReceptor: String?)
+
 data class DetalleViaje(
     val viaje: ViajeEntity?,
     val revision: RevisionEntity?,
@@ -62,6 +84,7 @@ data class DetalleViaje(
 class ViajeEnCursoException(val viajeId: String) : IllegalStateException("Ya tienes un viaje en curso.")
 class ViajeSoloLecturaException : IllegalStateException("Este viaje ya fue aprobado y no se puede modificar.")
 class KmIncoherenteException(val kmInicial: Int) : IllegalArgumentException("El km final no puede ser menor que el inicial.")
+class AdjuntoNoDisponibleException : IllegalStateException("No se encontró la foto o la firma. Tómala de nuevo o finaliza sin ella.")
 
 /** Todo lo del chofer pasa por aquí: lee y escribe solo en Room, y avisa al sincronizador. */
 interface ViajesRepositorio {
@@ -76,7 +99,10 @@ interface ViajesRepositorio {
     suspend fun cerrarDescanso(eventoId: String): Result<Unit>
     suspend fun registrarGasto(viajeId: String, tipo: TipoGasto, monto: Long, litros: Double?, descripcion: String?): Result<String>
     suspend fun registrarNovedad(viajeId: String, tipo: TipoNovedad, gravedad: Gravedad, descripcion: String): Result<String>
-    suspend fun finalizar(viajeId: String, kmFinal: Int, receptor: String?): Result<Unit>
+    /** Registra ENTREGA (con ubicación) y FIN, y deja el viaje FINALIZADO; [adjunto] es opcional. */
+    suspend fun finalizar(viajeId: String, kmFinal: Int, receptor: String?, adjunto: NuevoAdjunto?): Result<Unit>
+    /** Corrige los datos de un viaje observado; el servidor lo devuelve a "pendiente" al sincronizar. */
+    suspend fun editarViaje(viajeId: String, datos: DatosEdicionViaje): Result<Unit>
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -176,13 +202,26 @@ class ViajesRepositorioRoom(
         n.id
     }
 
-    override suspend fun finalizar(viajeId: String, kmFinal: Int, receptor: String?): Result<Unit> = runCatching {
+    override suspend fun finalizar(viajeId: String, kmFinal: Int, receptor: String?, adjunto: NuevoAdjunto?): Result<Unit> = runCatching {
         val v = exigirEditable(viajeId)
         if (!Validaciones.kmCoherentes(v.kmInicial, kmFinal)) throw KmIncoherenteException(v.kmInicial ?: 0)
+        if (adjunto != null && !(adjunto.archivo.isFile && adjunto.archivo.length() > 0)) throw AdjuntoNoDisponibleException()
         val ubic = ubicaciones.actual()
         val ahora = reloj.ahora()
+        val quienRecibe = receptor?.trim()?.ifBlank { null }
+        // Primero el archivo con su nombre definitivo, así la fila nunca apunta a un temporal.
+        val fila = adjunto?.let { a ->
+            val id = Ids.nuevo()
+            val archivo = withContext(Dispatchers.IO) { ArchivosAdjuntos.colocar(a.archivo, id, a.tipo) }
+            AdjuntoEntity(
+                id = id, viajeId = viajeId, tipo = a.tipo, rutaLocal = archivo.absolutePath, rutaRemota = null,
+                nombreReceptor = a.nombreReceptor?.trim()?.ifBlank { null } ?: quienRecibe, fechaHora = ahora,
+                modificadoLocal = ahora, syncPendiente = true,
+            )
+        }
         db.withTransaction {
-            val nota = receptor?.trim()?.ifBlank { null }?.let { "Recibió: $it" }
+            val nota = quienRecibe?.let { "Recibió: $it" }
+            fila?.let { registroDao.guardar(it) }
             registroDao.guardar(evento(viajeId, TipoEvento.ENTREGA, ahora, kmFinal, nota, ubic))
             registroDao.guardar(evento(viajeId, TipoEvento.FIN, ahora + 1, kmFinal, null, ubic))
             viajeDao.guardar(
@@ -193,6 +232,22 @@ class ViajesRepositorioRoom(
                 )
             )
         }
+        programador.alGuardar()
+    }
+
+    override suspend fun editarViaje(viajeId: String, datos: DatosEdicionViaje): Result<Unit> = runCatching {
+        val v = exigirEditable(viajeId)
+        val ahora = reloj.ahora()
+        viajeDao.guardar(
+            v.copy(
+                cliente = datos.cliente.trim(), origen = datos.origen.trim(), destino = datos.destino.trim(),
+                tipoCarga = datos.tipoCarga.trim(), pesoKg = datos.pesoKg, precio = datos.precio,
+                observaciones = datos.observaciones?.trim()?.ifBlank { null },
+                // Igual que el trigger del servidor: una corrección vuelve a quedar por revisar.
+                validacion = if (v.validacion == EstadoValidacion.OBSERVADO) EstadoValidacion.PENDIENTE else v.validacion,
+                modificadoLocal = ahora, syncPendiente = true,
+            )
+        )
         programador.alGuardar()
     }
 

@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.sistemasdeinformacion.proyecto.core.RelojSistema
 import com.sistemasdeinformacion.proyecto.data.local.AppDatabase
+import com.sistemasdeinformacion.proyecto.data.local.ArchivosAdjuntos
 import com.sistemasdeinformacion.proyecto.data.local.borrarTodo
 import com.sistemasdeinformacion.proyecto.data.model.Rol
 import com.sistemasdeinformacion.proyecto.data.prefs.Preferencias
@@ -41,6 +42,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Inyección manual de dependencias: aquí se construyen la base local, el cliente remoto y los repositorios. */
 class AppContainer(val context: Context) {
@@ -51,6 +53,8 @@ class AppContainer(val context: Context) {
     val preferencias by lazy { Preferencias(context) }
     val conexion by lazy { observarConexion(context) }
     val ubicaciones by lazy { UbicacionRepositorioFused(context) }
+    /** Fotos y firmas de las entregas, en filesDir/adjuntos (privado de la app). */
+    val archivosAdjuntos by lazy { ArchivosAdjuntos(context.filesDir) }
 
     /** Sesión de Supabase cifrada con el Keystore; la comparten el cliente y el repositorio de auth. */
     private val sesion by lazy { SesionCifrada(context) }
@@ -69,7 +73,11 @@ class AppContainer(val context: Context) {
             auth = if (supabaseConfigurado) AuthApiSupabase(supabase, sesion) else AuthApiSinServidor,
             fuentePerfil = if (supabaseConfigurado) FuentePerfilSupabase(supabase) else FuentePerfil { throw ErrorAuth.SinServidor },
             prefs = preferencias,
-            db = { db.borrarTodo() },
+            // Al cerrar sesión no quedan bitácoras ni fotos de la persona anterior en el teléfono.
+            db = {
+                db.borrarTodo()
+                withContext(Dispatchers.IO) { archivosAdjuntos.borrarTodo() }
+            },
             alEntrar = {
                 // Primera bajada: viajes del chofer (sync) y la lista de camiones.
                 programadorSync.alGuardar()

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Lo único que el FileProvider puede prestar: la carpeta de fotos y firmas de las entregas
+  (filesDir/adjuntos). La cámara recibe permiso de escritura solo sobre el archivo de la foto en curso.
+-->
+<paths>
+    <files-path name="adjuntos" path="adjuntos/" />
+</paths>
