@@ -203,6 +203,17 @@ language sql stable security definer set search_path = public as $$
   select exists (select 1 from viajes where id = v and chofer_id = auth.uid());
 $$;
 
+-- Un chofer que el administrador desactivó deja de guardar, aunque su teléfono conserve la sesión.
+create or replace function soy_activo() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from perfiles where id = auth.uid() and activo);
+$$;
+
+create or replace function viaje_aprobado(v uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from viajes where id = v and validacion = 'aprobado');
+$$;
+
 -- Reglas que no dependen de la app:
 --  * un chofer no se cambia el rol ni se activa/desactiva;
 --  * un chofer no aprueba sus viajes ni edita un viaje aprobado (VIAJE_APROBADO);
@@ -264,11 +275,15 @@ drop trigger if exists trg_viajes_proteger on viajes;
 create trigger trg_viajes_proteger before insert or update on viajes
   for each row execute function proteger_campos();
 
--- Un viaje aprobado queda cerrado también para sus registros hijos: un chofer no puede insertar,
--- cambiar ni borrar revisiones, eventos, gastos, novedades ni adjuntos (VIAJE_APROBADO, igual que
--- proteger_campos para el viaje). Reenviar una fila idéntica sí se permite: la app reintenta con
--- upsert (y el INSERT ... ON CONFLICT dispara este trigger antes de detectar el conflicto), así que
--- solo frena cuando algún dato realmente cambia; creado_en y actualizado_en no cuentan.
+-- Un viaje aprobado queda cerrado también para sus registros hijos: un chofer no puede cambiar ni
+-- borrar revisiones, eventos, gastos, novedades ni adjuntos (VIAJE_APROBADO, igual que
+-- proteger_campos para el viaje). Dos excepciones:
+--  * una fila nueva (su id todavía no existe) sí entra: la app no crea registros en un viaje
+--    finalizado, así que una fila nueva que llega tarde se anotó durante el viaje y solo se demoró
+--    por falta de señal (p. ej. la foto de la entrega);
+--  * reenviar una fila idéntica: la app reintenta con upsert (y el INSERT ... ON CONFLICT dispara
+--    este trigger antes de detectar el conflicto), así que solo frena cuando algún dato realmente
+--    cambia; creado_en y actualizado_en no cuentan.
 create or replace function proteger_hijos_aprobados() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare
@@ -289,10 +304,10 @@ begin
     end if;
     viajes_a := array[old.viaje_id, new.viaje_id];
   else
-    -- INSERT: si la fila ya existe con los mismos datos es un reenvío (upsert), no un cambio.
+    -- INSERT: una fila nueva entra siempre; si ya existe con los mismos datos es un reenvío (upsert).
     execute format('select to_jsonb(t) - $2 from public.%I t where t.id = $1', tg_table_name)
       into previo using new.id, ignorar;
-    if previo is not null and previo is not distinct from (to_jsonb(new) - ignorar) then
+    if previo is null or previo is not distinct from (to_jsonb(new) - ignorar) then
       return new;
     end if;
     viajes_a := array[new.viaje_id];
@@ -340,9 +355,9 @@ create policy camiones_admin on camiones for all to authenticated using (es_admi
 drop policy if exists viajes_select on viajes;
 create policy viajes_select on viajes for select to authenticated using (chofer_id = auth.uid() or es_admin());
 drop policy if exists viajes_insert on viajes;
-create policy viajes_insert on viajes for insert to authenticated with check (chofer_id = auth.uid());
+create policy viajes_insert on viajes for insert to authenticated with check (chofer_id = auth.uid() and soy_activo());
 drop policy if exists viajes_update on viajes;
-create policy viajes_update on viajes for update to authenticated using (chofer_id = auth.uid() or es_admin());
+create policy viajes_update on viajes for update to authenticated using ((chofer_id = auth.uid() and soy_activo()) or es_admin());
 
 do $$
 declare t text;
@@ -351,9 +366,9 @@ begin
     execute format('drop policy if exists %1$s_select on %1$s', t);
     execute format('create policy %1$s_select on %1$s for select to authenticated using (es_mi_viaje(viaje_id) or es_admin())', t);
     execute format('drop policy if exists %1$s_insert on %1$s', t);
-    execute format('create policy %1$s_insert on %1$s for insert to authenticated with check (es_mi_viaje(viaje_id))', t);
+    execute format('create policy %1$s_insert on %1$s for insert to authenticated with check (es_mi_viaje(viaje_id) and soy_activo())', t);
     execute format('drop policy if exists %1$s_update on %1$s', t);
-    execute format('create policy %1$s_update on %1$s for update to authenticated using (es_mi_viaje(viaje_id))', t);
+    execute format('create policy %1$s_update on %1$s for update to authenticated using (es_mi_viaje(viaje_id) and soy_activo())', t);
   end loop;
 end $$;
 -- No hay políticas DELETE: los registros se "eliminan" con eliminado = true,
@@ -390,16 +405,25 @@ grant select on resumen_viajes to authenticated;
 
 -- ---------------------------------------------------------------------
 -- Almacenamiento de fotos y firmas (bucket privado "adjuntos", rutas viaje_id/archivo)
+--  * solo JPEG o PNG de hasta 5 MB (la app sube fotos reducidas a 1600 px y firmas PNG);
+--  * en la carpeta de un viaje aprobado el chofer puede subir un archivo nuevo (la foto que llegó
+--    tarde, igual que proteger_hijos_aprobados), pero no reemplazar uno existente; borrar no puede
+--    nunca (no hay política DELETE).
 -- ---------------------------------------------------------------------
-insert into storage.buckets (id, name, public) values ('adjuntos', 'adjuntos', false)
-on conflict (id) do nothing;
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('adjuntos', 'adjuntos', false, 5242880, array['image/jpeg', 'image/png'])
+on conflict (id) do update
+  set file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
 
 drop policy if exists adjuntos_subir on storage.objects;
 create policy adjuntos_subir on storage.objects for insert to authenticated
-  with check (bucket_id = 'adjuntos' and es_mi_viaje(((storage.foldername(name))[1])::uuid));
+  with check (bucket_id = 'adjuntos' and es_mi_viaje(((storage.foldername(name))[1])::uuid) and soy_activo());
 drop policy if exists adjuntos_actualizar on storage.objects;
 create policy adjuntos_actualizar on storage.objects for update to authenticated
-  using (bucket_id = 'adjuntos' and es_mi_viaje(((storage.foldername(name))[1])::uuid));
+  using (bucket_id = 'adjuntos' and es_mi_viaje(((storage.foldername(name))[1])::uuid) and soy_activo()
+         and not viaje_aprobado(((storage.foldername(name))[1])::uuid))
+  with check (bucket_id = 'adjuntos' and es_mi_viaje(((storage.foldername(name))[1])::uuid) and soy_activo()
+              and not viaje_aprobado(((storage.foldername(name))[1])::uuid));
 drop policy if exists adjuntos_leer on storage.objects;
 create policy adjuntos_leer on storage.objects for select to authenticated
   using (bucket_id = 'adjuntos' and (es_mi_viaje(((storage.foldername(name))[1])::uuid) or es_admin()));
