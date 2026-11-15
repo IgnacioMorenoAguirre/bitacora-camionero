@@ -8,6 +8,7 @@ import androidx.work.WorkManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -28,8 +29,9 @@ interface ProgramadorSync {
  *    la vuelta extra del [SyncWorker] o el trabajo periódico.
  *  - [periodico] sincroniza cada 15 minutos (mínimo de Android), así llegan las aprobaciones del
  *    administrador aunque el chofer no guarde nada.
- *  - Al volver la red se reemplaza el trabajo inmediato (REPLACE): si estaba esperando un reintento
- *    con backoff, corre al tiro en vez de esperar a que venza la espera (spec 5, punto 10).
+ *  - Al volver la red se reemplaza el trabajo inmediato (REPLACE) si no está corriendo: si estaba
+ *    esperando un reintento con backoff, corre al tiro en vez de esperar a que venza la espera
+ *    (spec 5, punto 10).
  */
 class ProgramadorSyncWorkManager(
     context: Context,
@@ -43,7 +45,12 @@ class ProgramadorSyncWorkManager(
     private val workManager = WorkManager.getInstance(context)
 
     init {
-        alcance.launch { volvioLaRed(conectado).collect { sincronizarAhora() } }
+        alcance.launch {
+            volvioLaRed(conectado).collect {
+                val inmediato = workManager.getWorkInfosForUniqueWorkFlow(SyncWorker.TRABAJO_INMEDIATO).first()
+                if (reemplazarAlVolverLaRed(inmediato.map { it.state })) sincronizarAhora()
+            }
+        }
     }
 
     override fun alGuardar() {
@@ -70,6 +77,13 @@ class ProgramadorSyncWorkManager(
             EstadoSync(pendientes = p, enviando = e, conectado = c, ultimoError = error, viajesRestaurados = restaurados)
         }
 }
+
+/**
+ * Al volver la red solo se reemplaza el trabajo inmediato si no está corriendo: si está esperando un
+ * reintento con backoff, corre al tiro; si ya corre, cancelarlo haría subir las fotos de nuevo desde
+ * cero (en ruta la señal va y viene todo el rato).
+ */
+internal fun reemplazarAlVolverLaRed(estados: List<WorkInfo.State>): Boolean = estados.none { it == WorkInfo.State.RUNNING }
 
 /** Emite cada vez que la conexión pasa de "sin red" a "con red" (no al empezar ya conectado). */
 fun volvioLaRed(conectado: Flow<Boolean>): Flow<Unit> = flow {

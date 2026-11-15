@@ -217,7 +217,7 @@ class SincronizadorTest {
         assertEquals(1L, a1.modificadoLocal)
     }
 
-    @Test fun adjunto_sinArchivo_quedaPendienteYNoFrenaLaBajada() = runTest {
+    @Test fun adjunto_sinArchivo_subeLaFilaSinRutaYNoQuedaPendiente() = runTest {
         local.viajes.poner(viaje("v1", pendiente = false))
         local.adjuntos.poner(adjunto("a1", "v1"))
         local.gastos.poner(gasto("g1", "v1"))
@@ -225,10 +225,38 @@ class SincronizadorTest {
 
         val r = sync.sincronizar()
 
-        assertEquals(1, (r as ResultadoSync.Ok).enviados)
-        assertFalse("adjuntos:a1" in remoto.llamadas)
-        assertTrue(local.adjuntos["a1"].syncPendiente)
+        // El archivo ya no existe en el teléfono: no se puede recuperar, pero el contador no queda pegado.
+        assertEquals(2, (r as ResultadoSync.Ok).enviados)
+        assertFalse("archivo:a1" in remoto.llamadas)
+        assertNull((remoto.filas(Tablas.ADJUNTOS)["a1"] as AdjuntoEntity).rutaRemota)
+        assertFalse(local.adjuntos["a1"].syncPendiente)
         assertEquals(1, remoto.marcasPedidas.size)
+    }
+
+    @Test fun hijoDeViajeAprobado_rechazado_seRestauraElViajeYSeInforma() = runTest {
+        marcaGuardada = "2026-11-01T00:00:00+00:00"
+        // El viaje ya subió; el administrador lo aprobó mientras el chofer corregía un gasto sin señal.
+        local.viajes.poner(viaje("v1", pendiente = false))
+        local.gastos.poner(gasto("g1", "v1", monto = 9_000, modificado = 2))
+        local.eventos.poner(evento("e1", "v1")) // fila nueva: el servidor la acepta aunque el viaje esté aprobado
+        remoto.rechazarIds["g1"] = IllegalStateException("VIAJE_APROBADO")
+        val marcaServidor = "2026-11-09T15:00:00+00:00"
+        remoto.cambios = CambiosRemotos(
+            viajes = listOf(viaje("v1").aSubida().comoDtoBajada().copy(validacion = "aprobado", actualizadoEn = marcaServidor)),
+            eventos = listOf(evento("e1", "v1").aDto().copy(actualizadoEn = marcaServidor)),
+            gastos = listOf(gasto("g1", "v1", monto = 5_000).aDto().copy(actualizadoEn = marcaServidor)),
+        )
+
+        val r = sync.sincronizar()
+
+        assertEquals(listOf("v1"), (r as ResultadoSync.Ok).rechazados)
+        assertEquals(listOf("v1"), local.descartados)
+        assertTrue("eventos:e1" in remoto.llamadas)
+        assertNull("se pide todo para recuperar la versión del servidor", remoto.marcasPedidas.single())
+        assertEquals(5_000L, local.gastos["g1"].monto)
+        assertFalse(local.eventos["e1"].syncPendiente)
+        assertEquals(EstadoValidacion.APROBADO, local.viajes["v1"].validacion)
+        assertEquals("no queda nada pegado reintentándose", 0, local.pendientes().total)
     }
 
     @Test fun falla_informaSoloElErrorSinDetallesDeLaPeticion() = runTest {
@@ -239,6 +267,29 @@ class SincronizadorTest {
 
         assertEquals(ResultadoSync.Falla("Sin permiso para guardar este dato."), sync.sincronizar())
         assertTrue(local.gastos["g1"].syncPendiente)
+    }
+
+    @Test fun rechazoPermanente_noPideReintentar() = runTest {
+        local.viajes.poner(viaje("v1"))
+        local.gastos.poner(gasto("g1", "v1"))
+        remoto.rechazarIds["g1"] = IllegalStateException("new row violates check constraint \"gastos_monto_check\"")
+
+        val r = sync.sincronizar() as ResultadoSync.Falla
+
+        assertFalse(r.reintentar)
+        assertEquals("El servidor no aceptó un dato. Avisa al administrador.", r.mensaje)
+    }
+
+    @Test fun errorPasajeroDelServidor_pideReintentar() = runTest {
+        local.viajes.poner(viaje("v1"))
+        local.gastos.poner(gasto("g1", "v1"))
+        local.gastos.poner(gasto("g2", "v1"))
+        remoto.rechazarIds["g1"] = IllegalStateException("new row violates row-level security policy")
+        remoto.rechazarIds["g2"] = IllegalStateException("Internal Server Error")
+
+        val r = sync.sincronizar() as ResultadoSync.Falla
+
+        assertTrue("con un error pasajero conviene reintentar pronto", r.reintentar)
     }
 
     @Test fun filaRechazadaPorElServidor_noFrenaLoDemasNiLaBajada() = runTest {

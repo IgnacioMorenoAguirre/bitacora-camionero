@@ -9,23 +9,45 @@ private const val DATO_RECHAZADO = "El servidor no aceptó un dato. Avisa al adm
 private const val POR_DEFECTO = "No se pudo enviar. Se reintentará solo."
 
 /**
- * Mensaje corto en español para el chofer a partir del error del servidor (que viene en inglés y con
- * detalles técnicos). [texto] es la primera línea del error y [estado] el código HTTP, si lo hay.
+ * Qué tipo de rechazo mandó el servidor. Solo [PASAJERO] (servidor caído, 5xx, demasiadas
+ * peticiones o un error sin código) merece reintentar pronto; los demás no cambian por insistir.
  */
-internal fun mensajeSyncParaChofer(texto: String?, estado: Int?): String {
+internal enum class TipoErrorSync { VIAJE_APROBADO, SESION, PERMISO, DATO, PASAJERO }
+
+/** [texto] es la primera línea del error y [estado] el código HTTP, si lo hay. */
+internal fun tipoErrorSync(texto: String?, estado: Int?): TipoErrorSync {
     val t = texto.orEmpty().lowercase()
     return when {
-        "viaje_aprobado" in t -> VIAJE_APROBADO
-        "jwt" in t || ("token" in t && "expired" in t) -> SESION_VENCIDA
-        estado == 401 || estado == 403 || "row-level security" in t || "permission denied" in t -> SIN_PERMISO
-        "violates" in t && "constraint" in t || estado == 400 || estado == 409 || estado == 422 -> DATO_RECHAZADO
-        else -> POR_DEFECTO
+        "viaje_aprobado" in t -> TipoErrorSync.VIAJE_APROBADO
+        "jwt" in t || ("token" in t && "expired" in t) -> TipoErrorSync.SESION
+        estado == 401 || estado == 403 || "row-level security" in t || "permission denied" in t -> TipoErrorSync.PERMISO
+        estado == 408 || estado == 429 -> TipoErrorSync.PASAJERO
+        "violates" in t && "constraint" in t || (estado != null && estado in 400..499) -> TipoErrorSync.DATO
+        else -> TipoErrorSync.PASAJERO
     }
 }
 
-internal fun Exception.mensajeSyncParaChofer(): String {
-    // Solo la primera línea: supabase-kt agrega la URL y los encabezados de la petición.
+internal fun errorSyncPasajero(texto: String?, estado: Int?): Boolean = tipoErrorSync(texto, estado) == TipoErrorSync.PASAJERO
+
+/**
+ * Mensaje corto en español para el chofer a partir del error del servidor (que viene en inglés y con
+ * detalles técnicos).
+ */
+internal fun mensajeSyncParaChofer(texto: String?, estado: Int?): String = when (tipoErrorSync(texto, estado)) {
+    TipoErrorSync.VIAJE_APROBADO -> VIAJE_APROBADO
+    TipoErrorSync.SESION -> SESION_VENCIDA
+    TipoErrorSync.PERMISO -> SIN_PERMISO
+    TipoErrorSync.DATO -> DATO_RECHAZADO
+    TipoErrorSync.PASAJERO -> POR_DEFECTO
+}
+
+/** Solo la primera línea del error: supabase-kt agrega la URL y los encabezados de la petición. */
+private fun Exception.textoYEstado(): Pair<String?, Int?> {
     val primera = message?.lineSequence()?.first()?.trim()
     val texto = if (this is RestException) listOfNotNull(error, primera).joinToString(" ") else primera
-    return mensajeSyncParaChofer(texto, (this as? RestException)?.statusCode)
+    return texto to (this as? RestException)?.statusCode
 }
+
+internal fun Exception.tipoErrorSync(): TipoErrorSync = textoYEstado().let { (t, e) -> tipoErrorSync(t, e) }
+
+internal fun Exception.mensajeSyncParaChofer(): String = textoYEstado().let { (t, e) -> mensajeSyncParaChofer(t, e) }

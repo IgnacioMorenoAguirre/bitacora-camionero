@@ -14,9 +14,26 @@ import com.sistemasdeinformacion.proyecto.BitacoraApp
 import kotlinx.coroutines.flow.first
 import java.time.Duration
 
+/** Qué hace el worker después de una vuelta de sincronización. */
+internal enum class PasoSync { OTRA_VUELTA, LISTO, REINTENTAR }
+
 /**
- * Ejecuta la sincronización en segundo plano. Sin conexión o con falla pide reintento: WorkManager
- * espera con backoff exponencial y, por la restricción de red, corre apenas vuelve la señal.
+ * - Ok con pendientes: el chofer guardó algo mientras corría (KEEP no encola otro trabajo), se da
+ *   otra vuelta en vez de esperar al periódico, aunque esta vuelta no haya enviado nada.
+ * - Sin red o con un error pasajero del servidor: reintento con backoff.
+ * - Rechazo permanente (permisos, dato inválido): lo demás ya se envió, así que se termina bien.
+ *   Insistir no lo arregla y el backoff (hasta 5 h) atrasaría lo que el chofer guarde después; lo
+ *   rechazado se vuelve a probar con el próximo guardado o el periódico, y el aviso queda a la vista.
+ */
+internal fun siguientePaso(r: ResultadoSync, pendientes: Int): PasoSync = when (r) {
+    is ResultadoSync.Ok -> if (pendientes > 0) PasoSync.OTRA_VUELTA else PasoSync.LISTO
+    ResultadoSync.SinConexion -> PasoSync.REINTENTAR
+    is ResultadoSync.Falla -> if (r.reintentar) PasoSync.REINTENTAR else PasoSync.LISTO
+}
+
+/**
+ * Ejecuta la sincronización en segundo plano. Sin conexión o con un error pasajero pide reintento:
+ * WorkManager espera con backoff exponencial y, por la restricción de red, corre apenas vuelve la señal.
  */
 class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
@@ -24,21 +41,24 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         val container = (applicationContext as BitacoraApp).container
         val sincronizador = container.sincronizador ?: return Result.success()
 
-        // Si el chofer guardó algo mientras se enviaba, se da otra vuelta en vez de esperar al periódico.
         repeat(MAX_VUELTAS) {
-            when (val r = sincronizador.sincronizar()) {
+            val r = sincronizador.sincronizar()
+            when (r) {
                 is ResultadoSync.Ok -> {
                     container.errorSync.value = null
                     container.preferencias.agregarRestaurados(r.rechazados)
-                    if (r.enviados == 0 || container.db.syncDao().contarPendientes().first() == 0) return Result.success()
                 }
-                ResultadoSync.SinConexion -> return Result.retry()
+                ResultadoSync.SinConexion -> Unit
                 is ResultadoSync.Falla -> {
-                    // Lo demás ya se envió y la bajada se aplicó; solo lo rechazado espera el reintento.
                     container.errorSync.value = r.mensaje
                     container.preferencias.agregarRestaurados(r.rechazados)
-                    return Result.retry()
                 }
+            }
+            val pendientes = if (r is ResultadoSync.Ok) container.db.syncDao().contarPendientes().first() else 0
+            when (siguientePaso(r, pendientes)) {
+                PasoSync.OTRA_VUELTA -> Unit
+                PasoSync.LISTO -> return Result.success()
+                PasoSync.REINTENTAR -> return Result.retry()
             }
         }
         return Result.success()
