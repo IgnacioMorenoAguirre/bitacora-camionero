@@ -6,6 +6,8 @@ import com.sistemasdeinformacion.proyecto.data.remote.errorDeRespuesta
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -252,6 +254,17 @@ class AuthRepositorioTest {
         assertEquals(0, auth.cierres)
     }
 
+    @Test fun entrar_aunqueSeCanceleAlNavegar_ejecutaAlEntrar() = runTest {
+        // Al guardar el perfil la navegación cambia de pila y cancela al que llamó (el ViewModel).
+        val job = launch { repo.iniciarSesion("juan@correo.cl", "clave1234") }
+        prefs.despuesDeGuardar = { job.cancel(); yield() }
+
+        job.join()
+
+        assertEquals(juan, prefs.perfil.value)
+        assertEquals(1, entradas)
+    }
+
     @Test fun error400_alIniciarSesion_esCredencialesInvalidas() {
         assertEquals(ErrorAuth.CredencialesInvalidas, errorDeRespuesta(400, null, alIniciarSesion = true))
         assertEquals(ErrorAuth.CredencialesInvalidas, errorDeRespuesta(400, "invalid_credentials", alIniciarSesion = true))
@@ -313,7 +326,9 @@ class PerfilEnMemoria : PerfilLocal {
     /** Si cada limpieza ocurrió dentro de la exclusión con la sync. */
     val limpiezasEnExclusion = mutableListOf<Boolean>()
     var dentroDeExclusion: () -> Boolean = { false }
-    override suspend fun guardarPerfil(perfil: Perfil?) { this.perfil.value = perfil }
+    /** Corre justo después de guardar el perfil (para simular la cancelación que provoca la navegación). */
+    var despuesDeGuardar: suspend () -> Unit = {}
+    override suspend fun guardarPerfil(perfil: Perfil?) { this.perfil.value = perfil; despuesDeGuardar() }
     override suspend fun marcarRecuperacion(activa: Boolean) { recuperando.value = activa }
     override suspend fun limpiar() {
         limpiezas++

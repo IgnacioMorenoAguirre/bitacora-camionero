@@ -2,6 +2,8 @@ package com.sistemasdeinformacion.proyecto.data.repo
 
 import com.sistemasdeinformacion.proyecto.data.prefs.Perfil
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -154,23 +156,27 @@ class AuthRepositorioSupabase(
             descartarSesion("No se pudo descartar la sesión sin perfil")
             throw e
         }
-        exclusion.sinSincronizar {
-            val anterior = prefs.perfil.first()
-            if (anterior?.id != perfil.id) {
-                if (anterior != null) db.borrarTodo()
-                // Marca de bajada y avisos de otra persona (o de una sync que terminó tras cerrar sesión).
-                prefs.limpiar()
+        // Guardar el perfil activa la sesión y la navegación cancela la pantalla que llamó (su
+        // viewModelScope). Lo local y alEntrar() son cortos y no usan red: se completan igual.
+        withContext(NonCancellable) {
+            exclusion.sinSincronizar {
+                val anterior = prefs.perfil.first()
+                if (anterior?.id != perfil.id) {
+                    if (anterior != null) db.borrarTodo()
+                    // Marca de bajada y avisos de otra persona (o de una sync que terminó tras cerrar sesión).
+                    prefs.limpiar()
+                }
+                prefs.guardarPerfil(perfil)
+                prefs.marcarRecuperacion(false)
             }
-            prefs.guardarPerfil(perfil)
-            prefs.marcarRecuperacion(false)
-        }
-        try {
-            alEntrar()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            // La sesión quedó bien; la bajada se reintenta con la sync, pero debe quedar rastro.
-            registrarError("Falló la primera bajada al entrar", e)
+            try {
+                alEntrar()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // La sesión quedó bien; la bajada se reintenta con la sync, pero debe quedar rastro.
+                registrarError("Falló la primera bajada al entrar", e)
+            }
         }
         return perfil
     }
