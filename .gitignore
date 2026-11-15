@@ -14,3 +14,4 @@
 *.keystore
 *.jks
 .superpowers/
+*.local.txt
