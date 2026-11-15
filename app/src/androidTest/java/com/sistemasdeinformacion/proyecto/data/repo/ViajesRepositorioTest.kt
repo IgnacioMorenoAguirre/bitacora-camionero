@@ -96,6 +96,30 @@ class ViajesRepositorioTest {
         assertEquals(ahora, ev.fechaFin)
     }
 
+    @Test fun cerrarDescanso_viajeAprobado_esSoloLectura() = runTest {
+        val id = repo.crearViaje(datos, revision).getOrThrow()
+        val d = repo.registrarEvento(id, TipoEvento.DESCANSO, null, null).getOrThrow()
+        val v = db.viajeDao().obtener(id)!!
+        db.viajeDao().guardar(v.copy(validacion = EstadoValidacion.APROBADO))
+
+        val r = repo.cerrarDescanso(d)
+
+        assertTrue(r.exceptionOrNull() is ViajeSoloLecturaException)
+        assertNull(repo.detalle(id).first().eventos.first { it.id == d }.fechaFin)
+    }
+
+    @Test fun finalizar_dosVeces_noDuplicaEntregaNiFin() = runTest {
+        val id = repo.crearViaje(datos, revision).getOrThrow()
+        repo.finalizar(id, 1500, null, null).getOrThrow()
+
+        val r = repo.finalizar(id, 1600, null, null)
+
+        assertTrue(r.exceptionOrNull() is ViajeYaCerradoException)
+        val d = repo.detalle(id).first()
+        assertEquals(listOf(TipoEvento.INICIO, TipoEvento.ENTREGA, TipoEvento.FIN), d.eventos.map { it.tipo })
+        assertEquals(1500, d.viaje!!.kmFinal)
+    }
+
     @Test fun finalizar_kmMenor_falla() = runTest {
         val id = repo.crearViaje(datos, revision).getOrThrow()
         assertTrue(repo.finalizar(id, 900, null, null).isFailure)

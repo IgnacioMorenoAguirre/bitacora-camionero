@@ -10,7 +10,10 @@ import androidx.core.content.ContextCompat
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -65,11 +68,19 @@ class UbicacionRepositorioFused(private val context: Context) : UbicacionReposit
                     }
                 }
             } else {
-                @Suppress("DEPRECATION")
-                geocoder.getFromLocation(lat, lon, 1)?.firstOrNull()?.let(::formatear)
+                // Antes de Android 13 la llamada bloquea sin límite y no se puede cancelar: corre en su
+                // propio hilo y, si se demora, se sigue sin dirección (ese hilo termina solo después).
+                val tarea = sinEsperar.async {
+                    @Suppress("DEPRECATION")
+                    geocoder.getFromLocation(lat, lon, 1)?.firstOrNull()?.let(::formatear)
+                }
+                withTimeoutOrNull(2_500) { tarea.await() }
             }
         }.getOrNull()
     }
+
+    /** Geocodificación antigua (bloqueante): nadie la espera más allá del tiempo límite. */
+    private val sinEsperar = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private fun hayInternet(): Boolean {
         val cm = context.getSystemService(android.net.ConnectivityManager::class.java)

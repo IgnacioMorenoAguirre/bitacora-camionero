@@ -179,6 +179,7 @@ class ViajesRepositorioRoom(
 
     override suspend fun cerrarDescanso(eventoId: String): Result<Unit> = runCatching {
         val e = registroDao.evento(eventoId) ?: error("No se encontró el descanso.")
+        exigirEditable(e.viajeId)
         val ahora = reloj.ahora()
         registroDao.guardar(e.copy(fechaFin = ahora, modificadoLocal = ahora, syncPendiente = true))
         programador.alGuardar()

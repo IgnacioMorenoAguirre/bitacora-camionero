@@ -21,10 +21,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
@@ -41,7 +41,9 @@ import com.sistemasdeinformacion.proyecto.ui.componentes.CampoTexto
 import com.sistemasdeinformacion.proyecto.ui.componentes.SelectorOpciones
 import com.sistemasdeinformacion.proyecto.ui.navegacion.LocalContainer
 import com.sistemasdeinformacion.proyecto.ui.theme.Bitacora
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 
 sealed interface HojaRegistro {
     data object Parada : HojaRegistro
@@ -50,11 +52,20 @@ sealed interface HojaRegistro {
     data class TerminarDescanso(val eventoId: String) : HojaRegistro
 }
 
-/** Hojas inferiores para registrar en ruta. Todo se guarda en el teléfono al instante. */
+/**
+ * Hojas inferiores para registrar en ruta. Todo se guarda en el teléfono.
+ * El guardado corre en el alcance de la app, no en el de la hoja: espera la ubicación (unos
+ * segundos) y si el chofer cierra la hoja, gira el teléfono o vuelve atrás mientras tanto, el
+ * registro igual queda guardado.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HojasDeRegistro(hoja: HojaRegistro?, viajeId: String, kmActual: Int?, onCerrar: () -> Unit) {
     if (hoja == null) return
+    // Un guardado que termina después de cerrar esta hoja no debe cerrar otra que se abrió entretanto.
+    val vigente = remember(hoja) { AtomicBoolean(true) }
+    DisposableEffect(hoja) { onDispose { vigente.set(false) } }
+    val cerrar: () -> Unit = { if (vigente.get()) onCerrar() }
     val estadoHoja = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
         onDismissRequest = onCerrar,
@@ -71,10 +82,10 @@ fun HojasDeRegistro(hoja: HojaRegistro?, viajeId: String, kmActual: Int?, onCerr
                 .padding(bottom = 16.dp)
         ) {
             when (hoja) {
-                HojaRegistro.Parada -> FormParada(viajeId, kmActual, onCerrar)
-                is HojaRegistro.Gasto -> FormGasto(viajeId, hoja.tipo, onCerrar)
-                HojaRegistro.Novedad -> FormNovedad(viajeId, onCerrar)
-                is HojaRegistro.TerminarDescanso -> FormTerminarDescanso(hoja.eventoId, onCerrar)
+                HojaRegistro.Parada -> FormParada(viajeId, kmActual, cerrar)
+                is HojaRegistro.Gasto -> FormGasto(viajeId, hoja.tipo, cerrar)
+                HojaRegistro.Novedad -> FormNovedad(viajeId, cerrar)
+                is HojaRegistro.TerminarDescanso -> FormTerminarDescanso(hoja.eventoId, cerrar)
             }
         }
     }
@@ -113,8 +124,9 @@ private fun Titulo(texto: String) {
 
 @Composable
 private fun FormParada(viajeId: String, kmActual: Int?, onCerrar: () -> Unit) {
-    val repo = LocalContainer.current.viajes
-    val alcance = rememberCoroutineScope()
+    val container = LocalContainer.current
+    val repo = container.viajes
+    val alcance = container.alcance
     val tipos = listOf(TipoEvento.PARADA, TipoEvento.DESCANSO, TipoEvento.CARGA, TipoEvento.DESCARGA)
     var tipo by remember { mutableStateOf(TipoEvento.PARADA) }
     var km by remember { mutableStateOf("") }
@@ -145,7 +157,7 @@ private fun FormParada(viajeId: String, kmActual: Int?, onCerrar: () -> Unit) {
         if (km.isNotBlank() && kmNum == null) { errorKm = "Escribe solo números, por ejemplo 214 o 1.250."; return@BotonPrincipal }
         if (kmNum != null && kmActual != null && kmNum < kmActual) { errorKm = "Es menor que el último registrado (${kmActual} km)."; return@BotonPrincipal }
         guardando = true
-        alcance.launch {
+        alcance.launch(Dispatchers.Main.immediate) {
             repo.registrarEvento(viajeId, tipo, kmNum, nota).onSuccess { onCerrar() }.onFailure { error = mensaje(it); guardando = false }
         }
     })
@@ -153,22 +165,28 @@ private fun FormParada(viajeId: String, kmActual: Int?, onCerrar: () -> Unit) {
 
 @Composable
 private fun FormTerminarDescanso(eventoId: String, onCerrar: () -> Unit) {
-    val repo = LocalContainer.current.viajes
-    val alcance = rememberCoroutineScope()
+    val container = LocalContainer.current
+    val repo = container.viajes
+    val alcance = container.alcance
     var guardando by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
     Titulo("Terminar descanso")
     Text("Registra el fin del descanso para volver a la ruta.", style = MaterialTheme.typography.bodyLarge, color = Bitacora.colores.textoSuave)
+    error?.let { Spacer(Modifier.height(8.dp)); Text(it, color = MaterialTheme.colorScheme.error) }
     Spacer(Modifier.height(18.dp))
     BotonPrincipal("Terminar descanso", cargando = guardando, onClick = {
         guardando = true
-        alcance.launch { repo.cerrarDescanso(eventoId); onCerrar() }
+        alcance.launch(Dispatchers.Main.immediate) {
+            repo.cerrarDescanso(eventoId).onSuccess { onCerrar() }.onFailure { error = mensaje(it); guardando = false }
+        }
     })
 }
 
 @Composable
 private fun FormGasto(viajeId: String, tipoInicial: TipoGasto, onCerrar: () -> Unit) {
-    val repo = LocalContainer.current.viajes
-    val alcance = rememberCoroutineScope()
+    val container = LocalContainer.current
+    val repo = container.viajes
+    val alcance = container.alcance
     var tipo by remember { mutableStateOf(tipoInicial) }
     var monto by remember { mutableStateOf("") }
     var litros by remember { mutableStateOf("") }
@@ -198,7 +216,7 @@ private fun FormGasto(viajeId: String, tipoInicial: TipoGasto, onCerrar: () -> U
         if (tipo == TipoGasto.COMBUSTIBLE && (l == null || l <= 0.0)) { errorLitros = "Escribe los litros cargados."; ok = false }
         if (!ok) return@BotonPrincipal
         guardando = true
-        alcance.launch {
+        alcance.launch(Dispatchers.Main.immediate) {
             repo.registrarGasto(viajeId, tipo, m!!.toLong(), l, descripcion).onSuccess { onCerrar() }.onFailure { error = mensaje(it); guardando = false }
         }
     })
@@ -206,8 +224,9 @@ private fun FormGasto(viajeId: String, tipoInicial: TipoGasto, onCerrar: () -> U
 
 @Composable
 private fun FormNovedad(viajeId: String, onCerrar: () -> Unit) {
-    val repo = LocalContainer.current.viajes
-    val alcance = rememberCoroutineScope()
+    val container = LocalContainer.current
+    val repo = container.viajes
+    val alcance = container.alcance
     var tipo by remember { mutableStateOf(TipoNovedad.INCIDENTE) }
     var gravedad by remember { mutableStateOf(Gravedad.BAJA) }
     var descripcion by remember { mutableStateOf("") }
@@ -228,7 +247,7 @@ private fun FormNovedad(viajeId: String, onCerrar: () -> Unit) {
     BotonPrincipal("Guardar novedad", cargando = guardando, onClick = {
         if (descripcion.isBlank()) { errorDesc = "Describe brevemente qué pasó."; return@BotonPrincipal }
         guardando = true
-        alcance.launch {
+        alcance.launch(Dispatchers.Main.immediate) {
             repo.registrarNovedad(viajeId, tipo, gravedad, descripcion).onSuccess { onCerrar() }.onFailure { error = mensaje(it); guardando = false }
         }
     })
