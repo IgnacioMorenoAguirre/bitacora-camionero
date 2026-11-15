@@ -150,9 +150,8 @@ class Sincronizador(
     }
 
     /**
-     * Solo la primera línea: los errores de supabase-kt agregan la URL y los encabezados de la
-     * petición (con el token), que no deben llegar a la pantalla.
+     * Mensaje en español para el chofer. El texto crudo del servidor (con la URL y los encabezados de
+     * la petición, token incluido) nunca llega a la pantalla.
      */
-    private fun mensajeCorto(e: Exception): String =
-        e.message?.lineSequence()?.first()?.trim()?.ifBlank { null } ?: e::class.java.simpleName
+    private fun mensajeCorto(e: Exception): String = e.mensajeSyncParaChofer()
 }

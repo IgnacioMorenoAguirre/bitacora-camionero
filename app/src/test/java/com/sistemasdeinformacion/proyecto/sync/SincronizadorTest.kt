@@ -37,7 +37,7 @@ class SincronizadorTest {
     private val sync = Sincronizador(local, remoto, { marcaGuardada }, { marcaGuardada = it }, { chofer })
 
     @Test fun sube_enOrden_viajesAntesQueHijos() = runTest {
-        // Se cargan al revÃ©s para que el orden no dependa de cÃ³mo se insertaron.
+        // Se cargan al revés para que el orden no dependa de cómo se insertaron.
         local.adjuntos.poner(adjunto("a1", "v1"))
         local.novedades.poner(novedad("n1", "v1"))
         local.gastos.poner(gasto("g1", "v1"))
@@ -128,7 +128,7 @@ class SincronizadorTest {
 
     @Test fun viajeAprobado_rechazado_seDescartaYSeInforma() = runTest {
         marcaGuardada = "2026-11-01T00:00:00+00:00"
-        val editado = viaje("v1", cliente = "Editado sin seÃ±al")
+        val editado = viaje("v1", cliente = "Editado sin señal")
         local.viajes.poner(editado)
         local.gastos.poner(gasto("g1", "v1"))
         local.viajes.poner(viaje("v2"))
@@ -143,7 +143,7 @@ class SincronizadorTest {
         assertEquals(listOf("v1"), local.descartados)
         assertFalse("los registros del viaje aprobado no se suben", "gastos:g1" in remoto.llamadas)
         assertTrue("v2" in remoto.filas(Tablas.VIAJES))
-        assertNull("se pide todo para recuperar la versiÃ³n del servidor", remoto.marcasPedidas.single())
+        assertNull("se pide todo para recuperar la versión del servidor", remoto.marcasPedidas.single())
         val restaurado = local.viajes["v1"]
         assertEquals("Original", restaurado.cliente)
         assertEquals(EstadoValidacion.APROBADO, restaurado.validacion)
@@ -207,13 +207,13 @@ class SincronizadorTest {
     @Test fun adjunto_rutaRemotaQuedaEnElTelefonoAunqueFalleLaBajada() = runTest {
         local.viajes.poner(viaje("v1", pendiente = false))
         local.adjuntos.poner(adjunto("a1", "v1"))
-        remoto.fallarBajada = IOException("Sin seÃ±al")
+        remoto.fallarBajada = IOException("Sin señal")
 
         assertEquals(ResultadoSync.SinConexion, sync.sincronizar())
 
         val a1 = local.adjuntos["a1"]
         assertEquals("v1/a1.jpg", a1.rutaRemota)
-        assertFalse("la ruta no cambia modificadoLocal: el envÃ­o se confirma igual", a1.syncPendiente)
+        assertFalse("la ruta no cambia modificadoLocal: el envío se confirma igual", a1.syncPendiente)
         assertEquals(1L, a1.modificadoLocal)
     }
 
@@ -237,7 +237,7 @@ class SincronizadorTest {
         remoto.rechazarIds["g1"] =
             IllegalStateException("permission denied\nURL: https://x.supabase.co\nHeaders: [Authorization=Bearer abc]")
 
-        assertEquals(ResultadoSync.Falla("permission denied"), sync.sincronizar())
+        assertEquals(ResultadoSync.Falla("Sin permiso para guardar este dato."), sync.sincronizar())
         assertTrue(local.gastos["g1"].syncPendiente)
     }
 
@@ -264,7 +264,7 @@ class SincronizadorTest {
         assertFalse(local.gastos["g2"].syncPendiente)
         assertFalse(local.novedades["n1"].syncPendiente)
         assertTrue(local.viajes["v2"].syncPendiente)
-        assertFalse("los registros de un viaje que no subiÃ³ esperan", "gastos:g3" in remoto.llamadas)
+        assertFalse("los registros de un viaje que no subió esperan", "gastos:g3" in remoto.llamadas)
         assertTrue(local.gastos["g3"].syncPendiente)
         assertEquals(1, remoto.marcasPedidas.size)
         assertEquals(EstadoValidacion.APROBADO, local.viajes["v9"].validacion)
@@ -288,8 +288,8 @@ class SincronizadorTest {
 
     private val fecha = 1_794_312_000_000L
 
-    private fun viaje(id: String, cliente: String = "AgrÃ­cola Sur", modificado: Long = 1, pendiente: Boolean = true) = ViajeEntity(
-        id = id, choferId = "c1", camionId = null, cliente = cliente, origen = "Santiago", destino = "ConcepciÃ³n",
+    private fun viaje(id: String, cliente: String = "Agrícola Sur", modificado: Long = 1, pendiente: Boolean = true) = ViajeEntity(
+        id = id, choferId = "c1", camionId = null, cliente = cliente, origen = "Santiago", destino = "Concepción",
         ruta = null, tipoCarga = "Fruta", pesoKg = 1000.0, requiereRefrigeracion = false, precio = 500_000,
         fechaSalida = fecha, fechaLlegada = null, kmInicial = 100, kmFinal = null, estado = EstadoViaje.EN_CURSO,
         observaciones = null, modificadoLocal = modificado, syncPendiente = pendiente,
@@ -385,11 +385,11 @@ class RemotoEnMemoria : DestinoRemoto {
     private val tablas = mutableMapOf<String, MutableMap<String, Sincronizable>>()
     val aprobados = mutableSetOf<String>()
     val sinArchivo = mutableSetOf<String>()
-    /** Filas que el servidor rechaza siempre (RLS, CHECKâ€¦): el lote que las trae falla entero. */
+    /** Filas que el servidor rechaza siempre (RLS, CHECK…): el lote que las trae falla entero. */
     val rechazarIds = mutableMapOf<String, Exception>()
     var fallarBajada: Exception? = null
     var fallarUnaVezEn: String? = null
-    var errorAlFallar: Exception = IOException("Sin seÃ±al")
+    var errorAlFallar: Exception = IOException("Sin señal")
     var alSubir: (tabla: String, items: List<Sincronizable>) -> Unit = { _, _ -> }
     var cambios = CambiosRemotos()
     val marcasPedidas = mutableListOf<String?>()
