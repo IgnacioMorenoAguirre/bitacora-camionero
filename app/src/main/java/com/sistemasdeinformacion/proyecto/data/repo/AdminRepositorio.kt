@@ -1,6 +1,7 @@
 package com.sistemasdeinformacion.proyecto.data.repo
 
 import android.util.Log
+import com.sistemasdeinformacion.proyecto.core.resumenSeguro
 import com.sistemasdeinformacion.proyecto.data.model.EstadoValidacion
 import com.sistemasdeinformacion.proyecto.data.model.EstadoViaje
 import com.sistemasdeinformacion.proyecto.data.remote.AdjuntoDto
@@ -189,7 +190,7 @@ class AdminRepositorioSupabase(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(ETIQUETA, "No se pudo abrir Realtime; la lista no se actualizará sola", e)
+                Log.w(ETIQUETA, "No se pudo abrir Realtime; la lista no se actualizará sola: ${e.resumenSeguro()}")
             }
             awaitCancellation()
         } finally {
@@ -278,7 +279,7 @@ class AdminRepositorioSupabase(
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        Log.w(ETIQUETA, "No se pudo firmar $ruta", e)
+        Log.w(ETIQUETA, "No se pudo firmar $ruta: ${e.resumenSeguro()}")
         null
     }
 
@@ -375,12 +376,12 @@ class AdminRepositorioSupabase(
             codigo == "23505" -> ErrorAdmin.PatenteRepetida
             codigo == "23514" && texto.contains("patente") -> ErrorAdmin.PatenteInvalida
             codigo == "42501" || e.statusCode == 401 || e.statusCode == 403 -> ErrorAdmin.SinPermiso
-            else -> { Log.w(ETIQUETA, "Error del servidor", e); ErrorAdmin.Desconocido }
+            else -> { Log.w(ETIQUETA, "Error del servidor: ${e.resumenSeguro()}"); ErrorAdmin.Desconocido }
         }
     } catch (_: IOException) {
         throw ErrorAdmin.SinConexion
     } catch (e: Exception) {
-        Log.w(ETIQUETA, "Error inesperado", e)
+        Log.w(ETIQUETA, "Error inesperado: ${e.resumenSeguro()}")
         throw ErrorAdmin.Desconocido
     }
 
