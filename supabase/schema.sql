@@ -264,6 +264,57 @@ drop trigger if exists trg_viajes_proteger on viajes;
 create trigger trg_viajes_proteger before insert or update on viajes
   for each row execute function proteger_campos();
 
+-- Un viaje aprobado queda cerrado también para sus registros hijos: un chofer no puede insertar,
+-- cambiar ni borrar revisiones, eventos, gastos, novedades ni adjuntos (VIAJE_APROBADO, igual que
+-- proteger_campos para el viaje). Reenviar una fila idéntica sí se permite: la app reintenta con
+-- upsert (y el INSERT ... ON CONFLICT dispara este trigger antes de detectar el conflicto), así que
+-- solo frena cuando algún dato realmente cambia; creado_en y actualizado_en no cuentan.
+create or replace function proteger_hijos_aprobados() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  ignorar  text[] := array['creado_en', 'actualizado_en'];
+  previo   jsonb;
+  viajes_a uuid[];
+begin
+  if auth.role() is distinct from 'authenticated' or es_admin() then
+    if tg_op = 'DELETE' then return old; end if;
+    return new;
+  end if;
+
+  if tg_op = 'DELETE' then
+    viajes_a := array[old.viaje_id];
+  elsif tg_op = 'UPDATE' then
+    if (to_jsonb(old) - ignorar) is not distinct from (to_jsonb(new) - ignorar) then
+      return new;
+    end if;
+    viajes_a := array[old.viaje_id, new.viaje_id];
+  else
+    -- INSERT: si la fila ya existe con los mismos datos es un reenvío (upsert), no un cambio.
+    execute format('select to_jsonb(t) - $2 from public.%I t where t.id = $1', tg_table_name)
+      into previo using new.id, ignorar;
+    if previo is not null and previo is not distinct from (to_jsonb(new) - ignorar) then
+      return new;
+    end if;
+    viajes_a := array[new.viaje_id];
+  end if;
+
+  if exists (select 1 from viajes v where v.id = any (viajes_a) and v.validacion = 'aprobado') then
+    raise exception 'VIAJE_APROBADO' using errcode = 'P0001';
+  end if;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['revisiones','eventos','gastos','novedades','adjuntos'] loop
+    execute format('drop trigger if exists trg_%1$s_proteger on %1$s', t);
+    execute format('create trigger trg_%1$s_proteger before insert or update or delete on %1$s
+                    for each row execute function proteger_hijos_aprobados()', t);
+  end loop;
+end $$;
+
 -- ---------------------------------------------------------------------
 -- Seguridad a nivel de fila (RLS)
 -- ---------------------------------------------------------------------
