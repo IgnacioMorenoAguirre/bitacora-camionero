@@ -31,8 +31,22 @@ android {
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${localProp("supabase.anonKey")}\"")
     }
 
+    // Firma de release: el keystore y sus claves viven fuera de Git (local.properties + firma-release/)
+    val firmaLocal = localProp("release.storeFile").isNotBlank()
+    signingConfigs {
+        if (firmaLocal) {
+            create("release") {
+                storeFile = file(localProp("release.storeFile"))
+                storePassword = localProp("release.storePassword")
+                keyAlias = localProp("release.keyAlias")
+                keyPassword = localProp("release.keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (firmaLocal) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
