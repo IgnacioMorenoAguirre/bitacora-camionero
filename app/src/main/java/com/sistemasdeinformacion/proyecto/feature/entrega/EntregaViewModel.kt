@@ -13,6 +13,7 @@ import com.sistemasdeinformacion.proyecto.data.repo.DetalleViaje
 import com.sistemasdeinformacion.proyecto.data.repo.KmIncoherenteException
 import com.sistemasdeinformacion.proyecto.data.repo.NuevoAdjunto
 import com.sistemasdeinformacion.proyecto.data.repo.ViajeSoloLecturaException
+import com.sistemasdeinformacion.proyecto.data.repo.ViajeYaCerradoException
 import com.sistemasdeinformacion.proyecto.data.repo.ViajesRepositorio
 import com.sistemasdeinformacion.proyecto.domain.Formatos
 import com.sistemasdeinformacion.proyecto.domain.Validaciones
@@ -146,7 +147,7 @@ class EntregaViewModel(
                     when (e) {
                         is KmIncoherenteException -> errorKm = msjKmMenorQueInicial(e.kmInicial)
                         is AdjuntoNoDisponibleException -> { adjunto = null; errorAdjunto = e.message }
-                        is ViajeSoloLecturaException -> errorKm = e.message
+                        is ViajeSoloLecturaException, is ViajeYaCerradoException -> errorKm = e.message
                         else -> errorKm = "No se pudo cerrar el viaje. Vuelve a intentar."
                     }
                 }

@@ -2,6 +2,7 @@ package com.sistemasdeinformacion.proyecto.feature.entrega
 
 import android.content.ActivityNotFoundException
 import android.graphics.Bitmap
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -97,9 +98,12 @@ fun EntregaScreen(viajeId: String, nav: Navegador) {
         }
     }
 
+    // Mientras se cierra el viaje no se puede salir: se cortaría a medias y se perdería la foto o la firma.
+    BackHandler(enabled = vm.guardando) {}
+
     Column(Modifier.fillMaxSize().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(start = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { nav.volver() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Volver") }
+            IconButton(onClick = { nav.volver() }, enabled = !vm.guardando) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Volver") }
             Text("Volver", style = MaterialTheme.typography.bodyLarge, color = c.textoSuave)
         }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {

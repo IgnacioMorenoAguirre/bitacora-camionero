@@ -83,6 +83,7 @@ data class DetalleViaje(
 
 class ViajeEnCursoException(val viajeId: String) : IllegalStateException("Ya tienes un viaje en curso.")
 class ViajeSoloLecturaException : IllegalStateException("Este viaje ya fue aprobado y no se puede modificar.")
+class ViajeYaCerradoException : IllegalStateException("Este viaje ya está cerrado.")
 class KmIncoherenteException(val kmInicial: Int) : IllegalArgumentException("El km final no puede ser menor que el inicial.")
 class AdjuntoNoDisponibleException : IllegalStateException("No se encontró la foto o la firma. Tómala de nuevo o finaliza sin ella.")
 
@@ -204,6 +205,8 @@ class ViajesRepositorioRoom(
 
     override suspend fun finalizar(viajeId: String, kmFinal: Int, receptor: String?, adjunto: NuevoAdjunto?): Result<Unit> = runCatching {
         val v = exigirEditable(viajeId)
+        // Un segundo toque (o un reintento) no agrega otra ENTREGA y otro FIN a un viaje ya cerrado.
+        if (v.estado != EstadoViaje.EN_CURSO) throw ViajeYaCerradoException()
         if (!Validaciones.kmCoherentes(v.kmInicial, kmFinal)) throw KmIncoherenteException(v.kmInicial ?: 0)
         if (adjunto != null && !(adjunto.archivo.isFile && adjunto.archivo.length() > 0)) throw AdjuntoNoDisponibleException()
         val ubic = ubicaciones.actual()
