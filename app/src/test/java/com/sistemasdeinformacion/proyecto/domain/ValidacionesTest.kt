@@ -14,6 +14,24 @@ class ValidacionesTest {
     @Test fun parsearDecimal_aceptaComa() = assertEquals(3.5, Validaciones.parsearDecimal("3,5")!!, 0.0001)
     @Test fun parsearDecimal_aceptaMilesYComa() = assertEquals(1234.5, Validaciones.parsearDecimal("1.234,5")!!, 0.0001)
     @Test fun parsearDecimal_aceptaEntero() = assertEquals(180.0, Validaciones.parsearDecimal("180")!!, 0.0001)
+
+    // Muchos teclados numéricos de Android solo ofrecen el punto: "45.5" son 45,5 litros, no 455.
+    @Test fun parsearDecimal_puntoConUnoODosDecimales_esDecimal() {
+        assertEquals(45.5, Validaciones.parsearDecimal("45.5")!!, 0.0001)
+        assertEquals(18.25, Validaciones.parsearDecimal("18.25")!!, 0.0001)
+    }
+
+    @Test fun parsearDecimal_puntoConTresDigitos_esMiles() {
+        assertEquals(1250.0, Validaciones.parsearDecimal("1.250")!!, 0.0001)
+        assertEquals(1234567.0, Validaciones.parsearDecimal("1.234.567")!!, 0.0001)
+    }
+
+    @Test fun parsearDecimal_rechazaFormatosAmbiguos() {
+        assertNull(Validaciones.parsearDecimal("1.234.5"))
+        assertNull(Validaciones.parsearDecimal("12.3456"))
+        assertNull(Validaciones.parsearDecimal("abc"))
+        assertNull(Validaciones.parsearDecimal("-3"))
+    }
     @Test fun kmCoherentes_rechazaFinalMenor() = assertFalse(Validaciones.kmCoherentes(1000, 900))
     @Test fun kmCoherentes_aceptaIgual() = assertTrue(Validaciones.kmCoherentes(1000, 1000))
     @Test fun kmCoherentes_aceptaNulos() = assertTrue(Validaciones.kmCoherentes(1000, null))

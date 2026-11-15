@@ -41,12 +41,25 @@ object Validaciones {
         return t.toIntOrNull()
     }
 
-    /** "3,5" → 3.5; "1.234,5" → 1234.5; "180" → 180.0. */
+    private val regexDecimalConComa = Regex("^(\\d+|\\d{1,3}(\\.\\d{3})+)(,\\d+)?$")
+    private val regexMiles = Regex("^\\d{1,3}(\\.\\d{3})+$")
+    private val regexDecimalConPunto = Regex("^\\d+\\.\\d{1,2}$")
+
+    /**
+     * "3,5" → 3.5; "1.234,5" → 1234.5; "180" → 180.0; "1.250" → 1250.0.
+     * Muchos teclados numéricos solo tienen punto, así que "45.5" (uno o dos decimales) es 45.5.
+     * Lo ambiguo ("1.234.5", "12.3456") se rechaza en vez de adivinar.
+     */
     fun parsearDecimal(s: String): Double? {
         val t = s.trim().replace(" ", "")
-        if (t.isEmpty()) return null
-        val normal = if (t.contains(',')) t.replace(".", "").replace(',', '.') else t.replace(".", "")
-        return normal.toDoubleOrNull()?.takeIf { it >= 0 }
+        val normal = when {
+            t.contains(',') -> t.takeIf { regexDecimalConComa.matches(it) }?.replace(".", "")?.replace(',', '.')
+            regexDecimalConPunto.matches(t) -> t
+            regexMiles.matches(t) -> t.replace(".", "")
+            t.isNotEmpty() && t.all { it.isDigit() } -> t
+            else -> null
+        }
+        return normal?.toDoubleOrNull()?.takeIf { it >= 0 }
     }
 
     fun kmCoherentes(inicial: Int?, final: Int?): Boolean =
