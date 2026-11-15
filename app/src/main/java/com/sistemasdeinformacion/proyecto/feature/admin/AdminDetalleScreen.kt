@@ -166,16 +166,18 @@ private fun Contenido(d: DetalleViajeRemoto, e: EstadoAdminDetalle, vm: AdminDet
         Spacer(Modifier.height(10.dp))
         e.mensaje?.let { Aviso(it, VerdeAprobado, Modifier.padding(bottom = 10.dp)) }
         e.errorValidacion?.let { Aviso(it, c.peligro, Modifier.padding(bottom = 10.dp)) }
-        if (e.puedeObservar) {
+        if (e.muestraRevision) {
             CampoTexto(
                 e.comentario, vm::cambiarComentario, "Qué debe corregir el chofer (para observar)",
                 error = e.errorComentario, lineas = 3,
             )
             Spacer(Modifier.height(12.dp))
+            BotonPrincipal("Aprobar", vm::aprobar, habilitado = e.puedeAprobar, cargando = e.guardando)
+            Spacer(Modifier.height(10.dp))
+            BotonSecundario("Observar", vm::observar, habilitado = e.puedeObservar)
+        } else if (validacion == EstadoValidacion.APROBADO && e.mensaje == null) {
+            Text("Ya está aprobada y no se puede modificar.", style = MaterialTheme.typography.bodyMedium, color = c.textoSuave)
         }
-        BotonPrincipal("Aprobar", vm::aprobar, habilitado = e.puedeAprobar, cargando = e.guardando)
-        Spacer(Modifier.height(10.dp))
-        BotonSecundario("Observar", vm::observar, habilitado = e.puedeObservar)
         e.motivoSinValidar?.let {
             Spacer(Modifier.height(8.dp))
             Text(it, style = MaterialTheme.typography.bodyMedium, color = c.textoSuave)

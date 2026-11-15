@@ -33,14 +33,26 @@ data class EstadoAdminDetalle(
     private val finalizado: Boolean get() = detalle?.viaje?.estado == EstadoViaje.FINALIZADO.valor
     val validacion: EstadoValidacion?
         get() = detalle?.viaje?.validacion?.let { v -> EstadoValidacion.entries.firstOrNull { it.valor == v } ?: EstadoValidacion.PENDIENTE }
-    val puedeAprobar: Boolean get() = finalizado && !guardando && validacion != EstadoValidacion.APROBADO
-    val puedeObservar: Boolean get() = finalizado && !guardando
-    /** Por qué los botones están deshabilitados (lo explica la pantalla bajo ellos). */
-    val motivoSinValidar: String? get() = if (detalle != null && !finalizado) MSJ_SOLO_FINALIZADOS else null
+    /**
+     * Comentario y botones de revisión: solo para un viaje finalizado que espera revisión. Uno aprobado ya
+     * no se toca; uno observado vuelve a "pendiente" cuando el chofer lo corrige (trigger del servidor).
+     */
+    val muestraRevision: Boolean get() = finalizado && validacion == EstadoValidacion.PENDIENTE
+    val puedeAprobar: Boolean get() = muestraRevision && !guardando
+    val puedeObservar: Boolean get() = muestraRevision && !guardando
+    /** Por qué no se puede revisar ahora (lo explica la pantalla en lugar de los botones). */
+    val motivoSinValidar: String?
+        get() = when {
+            detalle == null -> null
+            !finalizado -> MSJ_SOLO_FINALIZADOS
+            validacion == EstadoValidacion.OBSERVADO -> MSJ_ESPERANDO_CORRECCION
+            else -> null
+        }
     val excedioHoras: Boolean get() = detalle?.excedioHoras == true
 }
 
 const val MSJ_SOLO_FINALIZADOS = "Solo se aprueban viajes finalizados."
+const val MSJ_ESPERANDO_CORRECCION = "Esperando la corrección del chofer."
 const val MSJ_FALTA_COMENTARIO = "Escribe qué debe corregir el chofer."
 
 /** Detalle de un viaje para el administrador: lo baja del servidor y permite aprobarlo u observarlo. */

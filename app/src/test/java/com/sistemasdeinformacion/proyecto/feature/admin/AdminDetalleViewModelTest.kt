@@ -88,6 +88,38 @@ class AdminDetalleViewModelTest {
         assertNull(vm.estado.value.errorComentario)
     }
 
+    @Test fun aprobar_ocultaLosControlesDeRevision() = runTest {
+        val repo = AdminFalso(detalle(estado = "finalizado", llegada = salida + 3 * hora))
+        val vm = AdminDetalleViewModel("v1", repo, conexion) { salida + 4 * hora }
+        assertTrue(vm.estado.value.muestraRevision)
+
+        vm.aprobar()
+
+        assertFalse(vm.estado.value.muestraRevision)
+        assertFalse(vm.estado.value.puedeAprobar)
+        assertFalse(vm.estado.value.puedeObservar)
+        assertEquals("Bitácora aprobada.", vm.estado.value.mensaje)
+    }
+
+    @Test fun observado_esperaQueElChoferCorrija() = runTest {
+        val repo = AdminFalso(detalle(estado = "finalizado", llegada = salida + 3 * hora, validacion = "observado"))
+        val vm = AdminDetalleViewModel("v1", repo, conexion) { salida + 4 * hora }
+
+        assertFalse(vm.estado.value.muestraRevision)
+        assertEquals("Esperando la corrección del chofer.", vm.estado.value.motivoSinValidar)
+        vm.aprobar()
+        assertTrue(repo.validaciones.isEmpty())
+    }
+
+    @Test fun observado_reenviadoPorElChofer_sePuedeAprobar() = runTest {
+        // El trigger del servidor lo devuelve a pendiente cuando el chofer corrige.
+        val repo = AdminFalso(detalle(estado = "finalizado", llegada = salida + 3 * hora, validacion = "pendiente"))
+        val vm = AdminDetalleViewModel("v1", repo, conexion) { salida + 4 * hora }
+
+        assertTrue(vm.estado.value.muestraRevision)
+        assertTrue(vm.estado.value.puedeAprobar)
+    }
+
     @Test fun sinConexion_muestraEstadoSinRed() = runTest {
         conexion.value = false
         val repo = AdminFalso(detalle(estado = "finalizado", llegada = salida + 3 * hora))
@@ -96,12 +128,12 @@ class AdminDetalleViewModelTest {
         assertTrue(vm.estado.value.sinConexion)
     }
 
-    private fun detalle(estado: String, llegada: Long?, eventos: List<EventoDto> = emptyList()): DetalleViajeRemoto {
+    private fun detalle(estado: String, llegada: Long?, eventos: List<EventoDto> = emptyList(), validacion: String = "pendiente"): DetalleViajeRemoto {
         val viaje = ViajeDto(
             id = "v1", choferId = "c1", cliente = "Agrícola Sur", origen = "Santiago", destino = "Temuco",
             tipoCarga = "Fruta", pesoKg = 12_000.0, requiereRefrigeracion = true, precio = 850_000,
             fechaSalida = salida.aIso(), fechaLlegada = llegada?.aIso(), kmInicial = 1000, kmFinal = llegada?.let { 1600 },
-            estado = estado,
+            estado = estado, validacion = validacion,
         )
         val inicio = EventoDto(id = "e0", viajeId = "v1", tipo = "inicio", fechaHora = salida.aIso(), km = 1000)
         return DetalleViajeRemoto.armar(
@@ -124,6 +156,10 @@ open class AdminFalso(var detalleViaje: DetalleViajeRemoto? = null) : AdminRepos
     override suspend fun finalizadosEntre(desde: Long, hasta: Long): List<ResumenViajeDto> = emptyList()
     override suspend fun validar(viajeId: String, aprobado: Boolean, comentario: String?): Result<Unit> {
         validaciones += Triple(viajeId, aprobado, comentario)
+        // Como el servidor: la próxima carga trae la validación nueva.
+        detalleViaje = detalleViaje?.let { d ->
+            d.copy(viaje = d.viaje.copy(validacion = if (aprobado) "aprobado" else "observado", comentarioValidacion = comentario))
+        }
         return Result.success(Unit)
     }
     override suspend fun urlAdjunto(ruta: String): String = "https://ejemplo/$ruta"
