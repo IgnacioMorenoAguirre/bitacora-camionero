@@ -9,7 +9,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -25,7 +24,6 @@ import com.sistemasdeinformacion.proyecto.ui.navegacion.LocalContainer
 import com.sistemasdeinformacion.proyecto.ui.navegacion.Navegador
 import com.sistemasdeinformacion.proyecto.ui.theme.Bitacora
 
-private val verdeOk = Color(0xFF4CD97B)
 
 /** Paso 1: pide el correo y manda el enlace. El enlace abre la app en [NuevaContrasenaScreen]. */
 @Composable
@@ -45,7 +43,7 @@ fun RecuperacionScreen(nav: Navegador) {
         onVolver = { nav.volver() },
     ) {
         if (e.enviado) {
-            Aviso("Te enviamos un enlace a tu correo. Ábrelo en este teléfono.", verdeOk, icono = Icons.Outlined.MarkEmailRead)
+            Aviso("Te enviamos un enlace a tu correo. Ábrelo en este teléfono.", Bitacora.colores.exito, icono = Icons.Outlined.MarkEmailRead)
             Spacer(Modifier.height(4.dp))
             BotonSecundario("Volver a iniciar sesión", { nav.volver() })
         } else {

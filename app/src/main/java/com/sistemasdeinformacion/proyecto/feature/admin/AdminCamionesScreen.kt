@@ -71,7 +71,7 @@ fun AdminCamionesScreen() {
         Text("Camiones", style = MaterialTheme.typography.headlineLarge)
         Text("Los choferes eligen entre los camiones activos.", style = MaterialTheme.typography.bodyMedium, color = c.textoSuave)
         Spacer(Modifier.height(12.dp))
-        e.mensaje?.let { Aviso(it, VerdeAprobado, Modifier.padding(bottom = 10.dp)) }
+        e.mensaje?.let { Aviso(it, Bitacora.colores.exito, Modifier.padding(bottom = 10.dp)) }
 
         when (val l = e.lista) {
             ListaCamiones.SinConexion -> Centro {

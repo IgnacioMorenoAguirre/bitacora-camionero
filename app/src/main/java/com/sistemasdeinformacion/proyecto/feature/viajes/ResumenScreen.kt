@@ -23,7 +23,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -66,7 +65,7 @@ fun ResumenScreen(viajeId: String, nav: Navegador) {
                 Text("${v.origen} a ${v.destino}", style = MaterialTheme.typography.titleMedium)
             }
             val (estado, color) = when (estadoResumen.validacion) {
-                EstadoValidacion.APROBADO -> "Bitácora aprobada. Ya no se puede modificar." to Color(0xFF4CD97B)
+                EstadoValidacion.APROBADO -> "Bitácora aprobada. Ya no se puede modificar." to c.exito
                 EstadoValidacion.OBSERVADO -> "Observada: ${estadoResumen.comentario ?: "revisa los datos"}" to c.peligro
                 EstadoValidacion.PENDIENTE -> "Pendiente de revisión del administrador" to c.textoSuave
             }

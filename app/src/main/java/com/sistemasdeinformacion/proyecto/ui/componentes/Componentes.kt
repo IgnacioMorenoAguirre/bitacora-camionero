@@ -164,7 +164,7 @@ fun IndicadorSync(estado: EstadoSync, modifier: Modifier = Modifier) {
             FaseSync.SIN_SENAL -> c.acento to if (n == 1) "Sin señal. 1 registro se enviará solo." else "Sin señal. $n registros se enviarán solos."
             FaseSync.PENDIENTE -> c.acento to if (n == 1) "1 registro por enviar." else "$n registros por enviar."
             FaseSync.ENVIANDO -> c.textoSuave to "Enviando…"
-            FaseSync.AL_DIA -> Color(0xFF4CD97B) to "Todo enviado"
+            FaseSync.AL_DIA -> c.exito to "Todo enviado"
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             PuntoEstado(color, pulsar = f == FaseSync.ENVIANDO)

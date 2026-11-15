@@ -24,7 +24,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -104,7 +103,7 @@ private fun FilaViaje(v: ViajeEntity, modifier: Modifier = Modifier, onClick: ()
         }
         val (texto, color) = when {
             v.estado == EstadoViaje.EN_CURSO -> "En curso" to c.acento
-            v.validacion == EstadoValidacion.APROBADO -> "Aprobado" to Color(0xFF4CD97B)
+            v.validacion == EstadoValidacion.APROBADO -> "Aprobado" to c.exito
             v.validacion == EstadoValidacion.OBSERVADO -> "Observado" to c.peligro
             else -> "Por revisar" to c.textoSuave
         }

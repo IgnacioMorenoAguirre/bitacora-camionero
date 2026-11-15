@@ -32,6 +32,7 @@ object Paleta {
     val grisBerma = Color(0xFFA9AFB6)
     val grisBermaClaro = Color(0xFFC9CDD1)
     val rojoPare = Color(0xFFC8102E)
+    val verdeExito = Color(0xFF4CD97B)
     // Tema claro
     val concreto = Color(0xFFECEDEA)
     val tinta = Color(0xFF1C1F22)
@@ -49,13 +50,15 @@ data class ColoresBitacora(
     val camino: Color,
     val textoSuave: Color,
     val peligro: Color,
+    /** Verde de "todo bien": aprobado, enviado, listo. */
+    val exito: Color,
     val esOscuro: Boolean,
 )
 
 val LocalColoresBitacora = staticCompositionLocalOf {
     ColoresBitacora(
         Paleta.verdeSenal, Paleta.blancoReflectante, Paleta.verdeSenalOscuro, Paleta.ambar, Paleta.asfalto,
-        Paleta.superficieAlta, Paleta.grisBerma, Paleta.rojoPare, true,
+        Paleta.superficieAlta, Paleta.grisBerma, Paleta.rojoPare, Paleta.verdeExito, true,
     )
 }
 
@@ -147,13 +150,13 @@ fun TemaBitacora(claro: Boolean = false, content: @Composable () -> Unit) {
         ColoresBitacora(
             letrero = Paleta.verdeSenal, letreroBorde = Paleta.blancoReflectante, letreroCamino = Paleta.verdeSenalOscuro,
             acento = Paleta.ambar, sobreAcento = Paleta.asfalto, camino = Color(0xFFD5D8D3),
-            textoSuave = Paleta.grisTexto, peligro = Paleta.rojoPare, esOscuro = false,
+            textoSuave = Paleta.grisTexto, peligro = Paleta.rojoPare, exito = Paleta.verdeSenal, esOscuro = false,
         )
     } else {
         ColoresBitacora(
             letrero = Paleta.verdeSenal, letreroBorde = Paleta.blancoReflectante, letreroCamino = Paleta.verdeSenalOscuro,
             acento = Paleta.ambar, sobreAcento = Paleta.asfalto, camino = Paleta.superficieAlta,
-            textoSuave = Paleta.grisBerma, peligro = Color(0xFFFF6B6B), esOscuro = true,
+            textoSuave = Paleta.grisBerma, peligro = Color(0xFFFF6B6B), exito = Paleta.verdeExito, esOscuro = true,
         )
     }
     CompositionLocalProvider(LocalColoresBitacora provides propios) {

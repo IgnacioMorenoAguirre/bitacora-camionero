@@ -131,7 +131,7 @@ private fun ContenidoReporte(r: Reporte) {
         }
         Spacer(Modifier.height(12.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Etiqueta(contar(r.aprobados, "aprobado", "aprobados"), VerdeAprobado)
+            Etiqueta(contar(r.aprobados, "aprobado", "aprobados"), Bitacora.colores.exito)
             Etiqueta(contar(r.pendientes, "por revisar", "por revisar"), MaterialTheme.colorScheme.onBackground)
             Etiqueta(contar(r.observados, "observado", "observados"), c.peligro)
         }

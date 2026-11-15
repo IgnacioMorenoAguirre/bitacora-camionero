@@ -128,7 +128,7 @@ private fun Contenido(d: DetalleViajeRemoto, e: EstadoAdminDetalle, vm: AdminDet
             Aviso("Superó las 5 horas de manejo continuo en este viaje.", c.peligro, Modifier.padding(top = 12.dp), Icons.Outlined.Timer)
         }
         when (validacion) {
-            EstadoValidacion.APROBADO -> Aviso("Bitácora aprobada.", VerdeAprobado, Modifier.padding(top = 12.dp))
+            EstadoValidacion.APROBADO -> Aviso("Bitácora aprobada.", Bitacora.colores.exito, Modifier.padding(top = 12.dp))
             EstadoValidacion.OBSERVADO -> Aviso("Observada: ${v.comentarioValidacion ?: "sin comentario"}", c.peligro, Modifier.padding(top = 12.dp))
             EstadoValidacion.PENDIENTE -> Unit
         }
@@ -164,7 +164,7 @@ private fun Contenido(d: DetalleViajeRemoto, e: EstadoAdminDetalle, vm: AdminDet
         Spacer(Modifier.height(24.dp))
         Text("Revisión del administrador", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(10.dp))
-        e.mensaje?.let { Aviso(it, VerdeAprobado, Modifier.padding(bottom = 10.dp)) }
+        e.mensaje?.let { Aviso(it, Bitacora.colores.exito, Modifier.padding(bottom = 10.dp)) }
         e.errorValidacion?.let { Aviso(it, c.peligro, Modifier.padding(bottom = 10.dp)) }
         if (e.muestraRevision) {
             CampoTexto(
