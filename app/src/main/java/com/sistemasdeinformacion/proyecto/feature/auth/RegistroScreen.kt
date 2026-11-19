@@ -13,6 +13,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.sistemasdeinformacion.proyecto.data.remote.supabaseConfigurado
 import com.sistemasdeinformacion.proyecto.ui.componentes.Aviso
 import com.sistemasdeinformacion.proyecto.ui.componentes.BotonPrincipal
 import com.sistemasdeinformacion.proyecto.ui.componentes.CampoTexto
@@ -31,6 +32,7 @@ fun RegistroScreen(nav: Navegador) {
         bajada = "Cuenta de chofer. Necesitas conexión solo para este paso.",
         onVolver = { nav.volver() },
     ) {
+        if (!supabaseConfigurado) Aviso(MSJ_SIN_SERVIDOR, Bitacora.colores.peligro)
         CampoTexto(
             valor = e.nombre, onCambio = vm::cambiarNombre, etiqueta = "Nombre completo", error = e.errores["nombre"],
             mayusculas = KeyboardCapitalization.Words,

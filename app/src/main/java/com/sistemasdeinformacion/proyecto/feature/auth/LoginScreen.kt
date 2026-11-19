@@ -29,6 +29,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.sistemasdeinformacion.proyecto.data.remote.supabaseConfigurado
 import com.sistemasdeinformacion.proyecto.ui.componentes.Aviso
 import com.sistemasdeinformacion.proyecto.ui.componentes.BotonPrincipal
 import com.sistemasdeinformacion.proyecto.ui.componentes.CampoTexto
@@ -49,6 +50,8 @@ fun LoginScreen(nav: Navegador) {
         bajada = "Entra con tu correo y contraseña. Después la app funciona sin señal.",
         etiqueta = "Bitácora del Camionero",
     ) {
+        // Compilación sin llaves de Supabase: avisar antes de que alguien intente registrarse.
+        if (!supabaseConfigurado) Aviso(MSJ_SIN_SERVIDOR, Bitacora.colores.peligro)
         CampoTexto(
             valor = e.email, onCambio = vm::cambiarEmail, etiqueta = "Correo", error = e.errorEmail,
             teclado = KeyboardType.Email, mayusculas = KeyboardCapitalization.None,

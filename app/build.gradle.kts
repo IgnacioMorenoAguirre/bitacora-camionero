@@ -14,6 +14,12 @@ val localProps = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 fun localProp(key: String): String = localProps.getProperty(key, "")
+if (localProp("supabase.url").isBlank() || localProp("supabase.anonKey").isBlank()) {
+    logger.warn(
+        "AVISO: local.properties no tiene supabase.url ni supabase.anonKey. La app compilará, " +
+            "pero no podrá iniciar sesión, registrar cuentas ni sincronizar. Ver README, sección \"Conectar con Supabase\".",
+    )
+}
 
 android {
     namespace = "com.sistemasdeinformacion.proyecto"
