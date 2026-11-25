@@ -1,0 +1,40 @@
+# Evita que Supabase pause el proyecto: el plan gratuito lo pausa tras 7 días sin actividad.
+# Cada 2 días hace una consulta a la API. Si el servidor no responde (por ejemplo, porque ya se
+# pausó), el workflow falla y GitHub avisa por correo; se reactiva en Supabase > Resume project.
+#
+# Necesita dos secretos del repositorio (Settings > Secrets and variables > Actions):
+#   SUPABASE_URL       la misma de local.properties (supabase.url)
+#   SUPABASE_ANON_KEY  la misma de local.properties (supabase.anonKey)
+name: Mantener Supabase activo
+
+on:
+  schedule:
+    - cron: "17 13 */2 * *" # cada 2 días, 10:17 hora de Chile
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  consultar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Consultar la API de Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::Faltan los secretos SUPABASE_URL o SUPABASE_ANON_KEY."
+            exit 1
+          fi
+          # Sin sesión, la API responde 401 (permiso denegado por las reglas de la base): eso
+          # confirma que la base está en línea y cuenta como actividad. 000 o 5xx = caído o pausado.
+          codigo=$(curl -s -m 30 -o /dev/null -w "%{http_code}" \
+            "$SUPABASE_URL/rest/v1/camiones?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+          echo "Respuesta de Supabase: $codigo"
+          case "$codigo" in
+            200|401) echo "Proyecto activo." ;;
+            *) echo "::error::Supabase no respondió bien ($codigo). Revisa si el proyecto está pausado."; exit 1 ;;
+          esac
